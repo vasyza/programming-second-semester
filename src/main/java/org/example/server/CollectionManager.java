@@ -1,5 +1,7 @@
 package org.example.server;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.example.common.util.IdGenerator;
 import org.example.common.model.Coordinates;
 import org.example.common.model.Organization;
@@ -7,8 +9,15 @@ import org.example.common.model.OrganizationType;
 import org.example.common.model.Position;
 import org.example.common.model.Worker;
 
-import java.io.FileWriter;
+import java.io.BufferedWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
+import java.io.BufferedReader;
+
 import java.io.IOException;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
@@ -24,6 +33,7 @@ public class CollectionManager {
     private final LinkedList<Worker> workers;
     private final LocalDate initializationDate;
     private String filePath;
+    private static final Logger logger = LogManager.getLogger(CollectionManager.class);
 
     /**
      * Инициализирует пустую коллекцию и устанавливает дату инициализации.
@@ -44,14 +54,22 @@ public class CollectionManager {
         this.filePath = filePath;
         workers.clear();
 
-        try (Scanner scanner = new Scanner(new java.io.File(filePath))) {
-            if (scanner.hasNextLine()) {
-                scanner.nextLine();
-            }
+        Path path = Paths.get(filePath);
+        if (!Files.exists(path)) {
+            logger.error("Файл {} не найден. Коллекция будет пустой.", filePath);
+            IdGenerator.setNextId(1L);
+            return;
+        }
+        if (!Files.isReadable(path)) {
+            throw new IllegalArgumentException("Нет прав на чтение файла: " + filePath);
+        }
 
-            long maxId = 0;
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine().trim();
+        long maxId = 0;
+        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            reader.readLine();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
                 if (line.isEmpty()) continue;
 
                 try {
@@ -61,12 +79,14 @@ public class CollectionManager {
                     }
                     workers.add(worker);
                 } catch (Exception e) {
-                    throw new IllegalArgumentException("Ошибка при разборе строки CSV: " + line + ". " + e.getMessage());
+                    logger.error("Ошибка при парсе строки CSV: {}. {} Строка пропущена.", line, e.getMessage());
                 }
             }
-
-            IdGenerator.setNextId(maxId + 1);
+        } catch (IOException e) {
+            throw new IOException("Ошибка чтения файла: " + filePath, e);
         }
+
+        IdGenerator.setNextId(maxId + 1);
     }
 
     /**
@@ -76,11 +96,23 @@ public class CollectionManager {
      */
     public void saveToFile() throws IOException {
         if (filePath == null || filePath.isEmpty()) {
-            throw new IllegalStateException("Путь к файлу не задан");
+            throw new IllegalStateException("Путь к файлу не задан. Невозможно сохранить коллекцию.");
         }
 
-        try (FileWriter writer = new FileWriter(filePath)) {
-            writer.write("id,name,coordinates_x,coordinates_y,creationDate,salary,startDate,endDate,position,organization_annualTurnover,organization_type\n");
+        Path path = Paths.get(filePath);
+
+        Path parentDir = path.getParent();
+        if (parentDir != null && !Files.exists(parentDir)) {
+            try {
+                Files.createDirectories(parentDir);
+            } catch (IOException e) {
+                throw new IOException("Не удалось создать родительские каталоги для файла: " + filePath, e);
+            }
+        }
+
+        try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+            writer.write("id,name,coordinates_x,coordinates_y,creationDate,salary,startDate,endDate,position,organization_annualTurnover,organization_type");
+            writer.newLine();
 
             DateTimeFormatter dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE;
             DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
@@ -99,10 +131,12 @@ public class CollectionManager {
                 sb.append(worker.getPosition() != null ? worker.getPosition() : "").append(',');
                 sb.append(worker.getOrganization().getAnnualTurnover() != null ? worker.getOrganization().getAnnualTurnover() : "").append(',');
                 sb.append(worker.getOrganization().getType());
-                sb.append('\n');
 
                 writer.write(sb.toString());
+                writer.newLine();
             }
+        } catch (IOException e) {
+            throw new IOException("Ошибка записи в файл: " + filePath, e);
         }
     }
 
@@ -289,57 +323,11 @@ public class CollectionManager {
         return "LinkedList<Worker>";
     }
 
-    /**
-     * Возвращает список всех работников.
-     */
-    public List<Worker> getAllWorkers() {
-        return new ArrayList<>(workers);
-    }
-
-    /**
-     * Проверяет, существует ли работник с указанным ID.
-     *
-     * @param id ID для проверки
-     * @return true, если работник с указанным ID существует, false - если не
-     * существует
-     */
-    public boolean existsById(Long id) {
-        return workers.stream().anyMatch(worker -> worker.getId().equals(id));
-    }
-
     public String getInfo() {
         return "Информация о коллекции:\n" + "Тип: " + getType() + "\n" + "Дата инициализации: " + getInitializationDate() + "\n" + "Количество элементов: " + size() + "\n";
     }
 
     public List<Worker> getSortedWorkers() {
-        return workers.stream().sorted()
-                .collect(Collectors.toList());
-    }
-
-    public Map<LocalDateTime, Long> groupCountingByStartDate() {
-        return workers.stream().collect(Collectors.groupingBy(Worker::getStartDate, Collectors.counting()));
-    }
-
-    public boolean removeAnyByStartDate(LocalDateTime startDate) {
-        Optional<Worker> workerToRemove = workers.stream().filter(w -> w.getStartDate().equals(startDate)).findFirst();
-
-        if (workerToRemove.isPresent()) {
-            workers.remove(workerToRemove.get());
-            return true;
-        }
-        return false;
-    }
-
-    public long removeLower(Worker thresholdWorker) {
-        long initialSize = workers.size();
-        workers.removeIf(worker -> worker.compareTo(thresholdWorker) < 0);
-        return initialSize - workers.size();
-    }
-
-    public Optional<Worker> removeHead() {
-        if (workers.isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(workers.removeFirst());
+        return workers.stream().sorted().collect(Collectors.toList());
     }
 }
