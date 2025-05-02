@@ -23,7 +23,7 @@ public class RequestHandler {
         String commandName = request.getCommandName();
         Object argument = request.getArgument();
         String message;
-        Object resultData = null;
+        List<?> resultData = null;
         boolean success = true;
 
         try {
@@ -36,7 +36,7 @@ public class RequestHandler {
                     break;
                 case "show":
                     resultData = collectionManager.getSortedWorkers();
-                    message = resultData == null || ((List<?>)resultData).isEmpty() ? "Коллекция пуста." : "Элементы коллекции:";
+                    message = resultData == null || resultData.isEmpty() ? "Коллекция пуста." : "Элементы коллекции:";
                     break;
                 case "add":
                     if (argument instanceof Worker) {
