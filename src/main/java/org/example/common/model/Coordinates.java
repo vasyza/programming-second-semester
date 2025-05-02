@@ -1,11 +1,15 @@
-package org.example.model;
+package org.example.common.model;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Objects;
 
 /**
  * Класс, представляющий координаты работника.
  */
-public class Coordinates {
+public class Coordinates implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 3L;
     private Float x; // Поле не может быть null
     private Double y; // Значение поля должно быть больше -72, Поле не может быть null
 

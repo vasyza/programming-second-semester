@@ -1,14 +1,13 @@
-package org.example.model;
+package org.example.common.model;
 
 /**
- * Перечисление, представляющее типы организаций.
+ * Перечисление, представляющее должности работников.
  */
-public enum OrganizationType {
-    PUBLIC,
-    GOVERNMENT,
-    TRUST,
-    PRIVATE_LIMITED_COMPANY,
-    OPEN_JOINT_STOCK_COMPANY;
+public enum Position {
+    DIRECTOR,
+    LABORER,
+    BAKER,
+    COOK;
 
     /**
      * Возвращает строковое представление всех возможных значений перечисления.
@@ -17,10 +16,10 @@ public enum OrganizationType {
      */
     public static String getAllValues() {
         StringBuilder sb = new StringBuilder();
-        for (OrganizationType type : values()) {
-            sb.append(type.name()).append(", ");
+        for (Position position : values()) {
+            sb.append(position.name()).append(", ");
         }
-        if (sb.length() > 0) {
+        if (!sb.isEmpty()) {
             sb.setLength(sb.length() - 2); // Удаляем последнюю запятую и пробел
         }
         return sb.toString();

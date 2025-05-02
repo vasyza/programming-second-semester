@@ -1,9 +1,7 @@
-package org.example.input;
+package org.example.client;
 
-import org.example.collection.IdGenerator;
-import org.example.model.*;
+import org.example.common.model.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
@@ -13,7 +11,7 @@ import java.util.Scanner;
  * Класс для обработки пользовательского ввода.
  * Содержит методы для чтения различных типов данных из консоли или скрипта.
  */
-public class InputHandler {
+public class UserInputHandler {
     private final Scanner scanner;
 
     /**
@@ -21,7 +19,7 @@ public class InputHandler {
      *
      * @param scanner сканнер для чтения ввода пользователя
      */
-    public InputHandler(Scanner scanner) {
+    public UserInputHandler(Scanner scanner) {
         this.scanner = scanner;
     }
 
@@ -32,38 +30,20 @@ public class InputHandler {
      * @return новый объект Worker
      */
     public Worker readWorker(boolean fromScript) {
-        return readWorker(fromScript, IdGenerator.getNextId());
-    }
-
-    /**
-     * Читает данные работника из ввода пользователя с указанным ID.
-     *
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param id         ID работника
-     * @return новый объект Worker
-     */
-    public Worker readWorker(boolean fromScript, Long id) {
         String name = readString("Введите имя работника: ", fromScript, false);
         Float x = readFloat("Введите координату x: ", fromScript, false);
         Double y = readDouble("Введите координату y (> -72): ", fromScript, false);
         Long salary = readLong("Введите зарплату (> 0, или пустая строка для null): ", fromScript, true);
-        LocalDateTime startDate = readLocalDateTime("Введите дату начала работы (в формате yyyy-MM-ddTHH:mm:ss): ",
-                fromScript, false);
-        ZonedDateTime endDate = readZonedDateTime(
-                "Введите дату окончания работы (в формате yyyy-MM-ddTHH:mm:ss+ZZ:ZZ, или пустая строка для null): ",
-                fromScript, true);
-        Position position = readPosition(
-                "Введите должность " + Position.getAllValues() + " (или пустая строка для null): ", fromScript, true);
-        Integer annualTurnover = readInteger("Введите годовой оборот организации (> 0, или пустая строка для null): ",
-                fromScript, true);
-        OrganizationType organizationType = readOrganizationType(
-                "Введите тип организации " + OrganizationType.getAllValues() + ": ", fromScript, false);
+        LocalDateTime startDate = readLocalDateTime("Введите дату начала работы (в формате yyyy-MM-ddTHH:mm:ss): ", fromScript, false);
+        ZonedDateTime endDate = readZonedDateTime("Введите дату окончания работы (в формате yyyy-MM-ddTHH:mm:ss+ZZ:ZZ, или пустая строка для null): ", fromScript, true);
+        Position position = readPosition("Введите должность " + Position.getAllValues() + " (или пустая строка для null): ", fromScript, true);
+        Integer annualTurnover = readInteger("Введите годовой оборот организации (> 0, или пустая строка для null): ", fromScript, true);
+        OrganizationType organizationType = readOrganizationType("Введите тип организации " + OrganizationType.getAllValues() + ": ", fromScript, false);
 
         Coordinates coordinates = new Coordinates(x, y);
         Organization organization = new Organization(annualTurnover, organizationType);
-        LocalDate creationDate = LocalDate.now();
 
-        return new Worker(id, name, coordinates, creationDate, salary, startDate, endDate, position, organization);
+        return new Worker(null, name, coordinates, null, salary, startDate, endDate, position, organization);
     }
 
     /**
@@ -118,7 +98,7 @@ public class InputHandler {
             }
 
             try {
-                Integer value = Integer.parseInt(input);
+                int value = Integer.parseInt(input);
                 if (value <= 0) {
                     if (fromScript) {
                         throw new IllegalArgumentException("Значение должно быть больше 0.");
@@ -152,7 +132,7 @@ public class InputHandler {
             }
 
             try {
-                Long value = Long.parseLong(input);
+                long value = Long.parseLong(input);
                 if (value <= 0) {
                     if (fromScript) {
                         throw new IllegalArgumentException("Значение должно быть больше 0.");
@@ -212,7 +192,7 @@ public class InputHandler {
             }
 
             try {
-                Double value = Double.parseDouble(input);
+                double value = Double.parseDouble(input);
                 if (value <= -72) {
                     if (fromScript) {
                         throw new IllegalArgumentException("Значение должно быть больше -72.");
@@ -251,8 +231,7 @@ public class InputHandler {
                 if (fromScript) {
                     throw new IllegalArgumentException("Некорректный формат даты и времени: " + input);
                 }
-                System.out.println(
-                        "Некорректный формат даты и времени. Используйте формат yyyy-MM-ddTHH:mm:ss. Повторите ввод.");
+                System.out.println("Некорректный формат даты и времени. Используйте формат yyyy-MM-ddTHH:mm:ss. Повторите ввод.");
             }
         }
     }
@@ -265,7 +244,7 @@ public class InputHandler {
      * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
      * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
      * @return введенная дата и время с часовым поясом или null, если ввод пуст и
-     *         allowEmpty=true
+     * allowEmpty=true
      */
     public ZonedDateTime readZonedDateTime(String prompt, boolean fromScript, boolean allowEmpty) {
         while (true) {
@@ -280,8 +259,7 @@ public class InputHandler {
                 if (fromScript) {
                     throw new IllegalArgumentException("Некорректный формат даты и времени с часовым поясом: " + input);
                 }
-                System.out.println(
-                        "Некорректный формат даты и времени с часовым поясом. Используйте формат yyyy-MM-ddTHH:mm:ss+ZZ:ZZ. Повторите ввод.");
+                System.out.println("Некорректный формат даты и времени с часовым поясом. Используйте формат yyyy-MM-ddTHH:mm:ss+ZZ:ZZ. Повторите ввод.");
             }
         }
     }
@@ -307,8 +285,7 @@ public class InputHandler {
                 if (fromScript) {
                     throw new IllegalArgumentException("Некорректное значение должности: " + input);
                 }
-                System.out.println("Некорректное значение должности. Допустимые значения: " + Position.getAllValues()
-                        + ". Повторите ввод.");
+                System.out.println("Некорректное значение должности. Допустимые значения: " + Position.getAllValues() + ". Повторите ввод.");
             }
         }
     }
@@ -334,8 +311,7 @@ public class InputHandler {
                 if (fromScript) {
                     throw new IllegalArgumentException("Некорректное значение типа организации: " + input);
                 }
-                System.out.println("Некорректное значение типа организации. Допустимые значения: "
-                        + OrganizationType.getAllValues() + ". Повторите ввод.");
+                System.out.println("Некорректное значение типа организации. Допустимые значения: " + OrganizationType.getAllValues() + ". Повторите ввод.");
             }
         }
     }

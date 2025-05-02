@@ -1,4 +1,4 @@
-package org.example.collection;
+package org.example.common.util;
 
 /**
  * Класс для генерации уникальных идентификаторов.

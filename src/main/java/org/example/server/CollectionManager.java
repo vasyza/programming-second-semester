@@ -1,6 +1,11 @@
-package org.example.collection;
+package org.example.server;
 
-import org.example.model.Worker;
+import org.example.common.util.IdGenerator;
+import org.example.common.model.Coordinates;
+import org.example.common.model.Organization;
+import org.example.common.model.OrganizationType;
+import org.example.common.model.Position;
+import org.example.common.model.Worker;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -15,7 +20,7 @@ import java.util.stream.Collectors;
 /**
  * Класс для управления коллекцией работников.
  */
-public class WorkerCollection {
+public class CollectionManager {
     private final LinkedList<Worker> workers;
     private final LocalDate initializationDate;
     private String filePath;
@@ -23,7 +28,7 @@ public class WorkerCollection {
     /**
      * Инициализирует пустую коллекцию и устанавливает дату инициализации.
      */
-    public WorkerCollection() {
+    public CollectionManager() {
         this.workers = new LinkedList<>();
         this.initializationDate = LocalDate.now();
     }
@@ -47,8 +52,7 @@ public class WorkerCollection {
             long maxId = 0;
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine().trim();
-                if (line.isEmpty())
-                    continue;
+                if (line.isEmpty()) continue;
 
                 try {
                     Worker worker = parseWorkerFromCSV(line);
@@ -57,8 +61,7 @@ public class WorkerCollection {
                     }
                     workers.add(worker);
                 } catch (Exception e) {
-                    throw new IllegalArgumentException(
-                            "Ошибка при разборе строки CSV: " + line + ". " + e.getMessage());
+                    throw new IllegalArgumentException("Ошибка при разборе строки CSV: " + line + ". " + e.getMessage());
                 }
             }
 
@@ -77,8 +80,7 @@ public class WorkerCollection {
         }
 
         try (FileWriter writer = new FileWriter(filePath)) {
-            writer.write(
-                    "id,name,coordinates_x,coordinates_y,creationDate,salary,startDate,endDate,position,organization_annualTurnover,organization_type\n");
+            writer.write("id,name,coordinates_x,coordinates_y,creationDate,salary,startDate,endDate,position,organization_annualTurnover,organization_type\n");
 
             DateTimeFormatter dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE;
             DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
@@ -93,12 +95,9 @@ public class WorkerCollection {
                 sb.append(worker.getCreationDate().format(dateFormatter)).append(',');
                 sb.append(worker.getSalary() != null ? worker.getSalary() : "").append(',');
                 sb.append(worker.getStartDate().format(dateTimeFormatter)).append(',');
-                sb.append(worker.getEndDate() != null ? worker.getEndDate().format(zonedDateTimeFormatter) : "")
-                        .append(',');
+                sb.append(worker.getEndDate() != null ? worker.getEndDate().format(zonedDateTimeFormatter) : "").append(',');
                 sb.append(worker.getPosition() != null ? worker.getPosition() : "").append(',');
-                sb.append(worker.getOrganization().getAnnualTurnover() != null
-                        ? worker.getOrganization().getAnnualTurnover()
-                        : "").append(',');
+                sb.append(worker.getOrganization().getAnnualTurnover() != null ? worker.getOrganization().getAnnualTurnover() : "").append(',');
                 sb.append(worker.getOrganization().getType());
                 sb.append('\n');
 
@@ -114,8 +113,7 @@ public class WorkerCollection {
      * @return экранированная строка
      */
     private String escapeCSV(String value) {
-        if (value == null)
-            return "";
+        if (value == null) return "";
         if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
             return '"' + value.replace("\"", "\"\"") + '"';
         }
@@ -146,14 +144,12 @@ public class WorkerCollection {
             LocalDateTime startDate = LocalDateTime.parse(parts[6]);
             ZonedDateTime endDate = parts[7].isEmpty() ? null : ZonedDateTime.parse(parts[7]);
 
-            org.example.model.Position position = parts[8].isEmpty() ? null
-                    : org.example.model.Position.valueOf(parts[8]);
+            Position position = parts[8].isEmpty() ? null : Position.valueOf(parts[8]);
             Integer annualTurnover = parts[9].isEmpty() ? null : Integer.parseInt(parts[9]);
-            org.example.model.OrganizationType organizationType = org.example.model.OrganizationType.valueOf(parts[10]);
+            OrganizationType organizationType = OrganizationType.valueOf(parts[10]);
 
-            org.example.model.Coordinates coordinates = new org.example.model.Coordinates(x, y);
-            org.example.model.Organization organization = new org.example.model.Organization(annualTurnover,
-                    organizationType);
+            Coordinates coordinates = new Coordinates(x, y);
+            Organization organization = new Organization(annualTurnover, organizationType);
 
             return new Worker(id, name, coordinates, creationDate, salary, startDate, endDate, position, organization);
         } catch (NumberFormatException e) {
@@ -171,6 +167,9 @@ public class WorkerCollection {
      * @param worker работник для добавления
      */
     public void addWorker(Worker worker) {
+        worker.setId(IdGenerator.getNextId());
+        worker.setCreationDate(LocalDate.now());
+
         workers.add(worker);
     }
 
@@ -257,11 +256,7 @@ public class WorkerCollection {
      * @return список зарплат в порядке возрастания
      */
     public List<Long> getSalariesAscending() {
-        return workers.stream()
-                .map(Worker::getSalary)
-                .filter(Objects::nonNull)
-                .sorted()
-                .collect(Collectors.toList());
+        return workers.stream().map(Worker::getSalary).filter(Objects::nonNull).sorted().collect(Collectors.toList());
     }
 
     /**
@@ -270,11 +265,7 @@ public class WorkerCollection {
      * @return список зарплат в порядке убывания
      */
     public List<Long> getSalariesDescending() {
-        return workers.stream()
-                .map(Worker::getSalary)
-                .filter(Objects::nonNull)
-                .sorted(Collections.reverseOrder())
-                .collect(Collectors.toList());
+        return workers.stream().map(Worker::getSalary).filter(Objects::nonNull).sorted(Collections.reverseOrder()).collect(Collectors.toList());
     }
 
     /**
@@ -314,5 +305,41 @@ public class WorkerCollection {
      */
     public boolean existsById(Long id) {
         return workers.stream().anyMatch(worker -> worker.getId().equals(id));
+    }
+
+    public String getInfo() {
+        return "Информация о коллекции:\n" + "Тип: " + getType() + "\n" + "Дата инициализации: " + getInitializationDate() + "\n" + "Количество элементов: " + size() + "\n";
+    }
+
+    public List<Worker> getSortedWorkers() {
+        return workers.stream().sorted()
+                .collect(Collectors.toList());
+    }
+
+    public Map<LocalDateTime, Long> groupCountingByStartDate() {
+        return workers.stream().collect(Collectors.groupingBy(Worker::getStartDate, Collectors.counting()));
+    }
+
+    public boolean removeAnyByStartDate(LocalDateTime startDate) {
+        Optional<Worker> workerToRemove = workers.stream().filter(w -> w.getStartDate().equals(startDate)).findFirst();
+
+        if (workerToRemove.isPresent()) {
+            workers.remove(workerToRemove.get());
+            return true;
+        }
+        return false;
+    }
+
+    public long removeLower(Worker thresholdWorker) {
+        long initialSize = workers.size();
+        workers.removeIf(worker -> worker.compareTo(thresholdWorker) < 0);
+        return initialSize - workers.size();
+    }
+
+    public Optional<Worker> removeHead() {
+        if (workers.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(workers.removeFirst());
     }
 }

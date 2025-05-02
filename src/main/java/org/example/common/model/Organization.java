@@ -1,11 +1,15 @@
-package org.example.model;
+package org.example.common.model;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Objects;
 
 /**
  * Класс, представляющий организацию работника.
  */
-public class Organization {
+public class Organization implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 2L;
     private Integer annualTurnover; // Поле может быть null, Значение поля должно быть больше 0
     private OrganizationType type; // Поле не может быть null
 

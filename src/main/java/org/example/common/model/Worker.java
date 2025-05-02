@@ -1,5 +1,7 @@
-package org.example.model;
+package org.example.common.model;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
@@ -9,7 +11,9 @@ import java.util.Objects;
  * Класс, представляющий работника.
  * Реализует интерфейс Comparable для сортировки по умолчанию по полю id.
  */
-public class Worker implements Comparable<Worker> {
+public class Worker implements Comparable<Worker>, Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
     private Long id; // Поле не может быть null, Значение поля должно быть больше 0, Значение этого
                      // поля должно быть уникальным, Значение этого поля должно генерироваться
                      // автоматически
@@ -43,17 +47,11 @@ public class Worker implements Comparable<Worker> {
     public Worker(Long id, String name, Coordinates coordinates, LocalDate creationDate,
             Long salary, LocalDateTime startDate, ZonedDateTime endDate,
             Position position, Organization organization) {
-        if (id == null || id <= 0) {
-            throw new IllegalArgumentException("ID должен быть больше 0");
-        }
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Имя не может быть пустым");
         }
         if (coordinates == null) {
             throw new IllegalArgumentException("Координаты не могут быть null");
-        }
-        if (creationDate == null) {
-            throw new IllegalArgumentException("Дата создания не может быть null");
         }
         if (salary != null && salary <= 0) {
             throw new IllegalArgumentException("Зарплата должна быть больше 0");
@@ -239,6 +237,20 @@ public class Worker implements Comparable<Worker> {
             throw new IllegalArgumentException("Организация не может быть null");
         }
         this.organization = organization;
+    }
+
+    public void setId(Long id) {
+        if (id == null || id <= 0) {
+            throw new IllegalArgumentException("ID должен быть больше 0");
+        }
+        this.id = id;
+    }
+
+    public void setCreationDate(LocalDate creationDate) {
+        if (creationDate == null) {
+            throw new IllegalArgumentException("Дата создания не может быть null");
+        }
+        this.creationDate = creationDate;
     }
 
     @Override
