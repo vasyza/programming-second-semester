@@ -6,11 +6,7 @@ import org.example.common.model.Worker;
 import org.example.common.request.CommandRequest;
 import org.example.common.response.CommandResponse;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 
 public class RequestHandler {
@@ -72,49 +68,41 @@ public class RequestHandler {
                     collectionManager.clear();
                     message = "Коллекция очищена.";
                     break;
+                case "save":
+                    collectionManager.saveToFile();
+                    message = "Коллекция успешно сохранена.";
+                    break;
                 case "execute_script":
                     success = false;
                     message = "Команда 'execute_script' выполняется на клиенте.";
                     break;
-                case "remove_head":
-                    Optional<Worker> removedHead = collectionManager.removeHead();
-                    if (removedHead.isPresent()) {
-                        message = "Первый элемент удален:";
-                        resultData = removedHead.get();
-                    } else {
-                        message = "Коллекция пуста, нечего удалять.";
-                    }
+                case "add_if_min":
+                    if (argument instanceof Worker addMinWorker) {
+                        if (collectionManager.addIfMin(addMinWorker)) {
+                            message = "Работник успешно добавлен.";
+                        } else {
+                            message = "Работник не добавлен.";
+                        }
+                    } else { throw new IllegalArgumentException("Invalid argument type for add_if_min"); }
                     break;
                 case "add_if_max":
                     if (argument instanceof Worker addMaxWorker) {
                         if (collectionManager.addIfMax(addMaxWorker)) {
-                            message = "Работник успешно добавлен (как максимальный).";
+                            message = "Работник успешно добавлен.";
                         } else {
-                            message = "Работник не добавлен (не максимальный).";
+                            message = "Работник не добавлен.";
                         }
                     } else { throw new IllegalArgumentException("Invalid argument type for add_if_max"); }
                     break;
-                case "remove_lower":
-                    if (argument instanceof Worker) {
-                        long removedCount = collectionManager.removeLower((Worker) argument);
-                        message = "Удалено " + removedCount + " элементов, меньших чем заданный.";
-                    } else { throw new IllegalArgumentException("Invalid argument type for remove_lower"); }
+                case "print_descending":
+                    List<Worker> descendingWorkers = collectionManager.getDescending();
+                    message = descendingWorkers.isEmpty() ? "Коллекция пуста." : "Элементы коллекции в порядке убывания:";
+                    resultData = descendingWorkers;
                     break;
-                case "remove_any_by_start_date":
-                    if (argument instanceof LocalDateTime) {
-                        if (collectionManager.removeAnyByStartDate((LocalDateTime) argument)) {
-                            message = "Один работник с указанной датой начала удален.";
-                        } else {
-                            message = "Работники с указанной датой начала не найдены.";
-                        }
-                    } else { throw new IllegalArgumentException("Invalid argument type for remove_any_by_start_date"); }
-                    break;
-                case "group_counting_by_start_date":
-                    Map<LocalDateTime, Long> groups = collectionManager.groupCountingByStartDate();
-                    message = "Группировка по дате начала:";
-                    resultData = groups.entrySet().stream()
-                            .map(entry -> entry.getKey() + ": " + entry.getValue() + " элемент(а)")
-                            .collect(Collectors.toList());
+                case "print_field_descending_salary":
+                    List<Long> salariesDescending = collectionManager.getSalariesDescending();
+                    message = salariesDescending.isEmpty() ? "Зарплаты не найдены." : "Зарплаты по убыванию:";
+                    resultData = salariesDescending;
                     break;
                 case "print_field_ascending_salary":
                     List<Long> salaries = collectionManager.getSalariesAscending();
@@ -147,14 +135,15 @@ public class RequestHandler {
                update id {element} : обновить значение элемента коллекции, id которого равен заданному
                remove_by_id id : удалить элемент из коллекции по его id
                clear : очистить коллекцию
+               save : сохранить коллекцию в файл
                execute_script file_name : (Выполняется клиентом) считать и исполнить скрипт из указанного файла.
                exit : завершить программу клиента
-               remove_head : вывести первый элемент коллекции и удалить его
+               add_if_min {element} : добавить новый элемент в коллекцию, если его значение меньше, чем у наименьшего элемента этой коллекции
                add_if_max {element} : добавить новый элемент, если его значение превышает значение наибольшего элемента
-               remove_lower {element} : удалить из коллекции все элементы, меньшие, чем заданный
-               remove_any_by_start_date startDate : удалить из коллекции один элемент по дате начала
-               group_counting_by_start_date : сгруппировать элементы по дате начала и вывести количество в каждой группе
+               history : вывести последние 15 команд (без их аргументов)
+               print_descending : вывести элементы коллекции в порядке убывания
                print_field_ascending_salary : вывести значения поля salary всех элементов в порядке возрастания
+               print_field_descending_salary : вывести значения поля salary всех элементов в порядке убывания
                """;
     }
 }

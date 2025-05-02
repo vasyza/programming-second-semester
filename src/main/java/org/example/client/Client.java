@@ -1,17 +1,13 @@
 package org.example.client;
 
+import org.example.common.model.Worker;
 import org.example.common.request.CommandRequest;
 import org.example.common.response.CommandResponse;
-import org.example.common.model.*;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.NoSuchElementException;
-import java.util.Optional;
-import java.util.Scanner;
-import java.util.HashSet;
-import java.util.Set;
-import java.time.LocalDateTime;
+import java.util.*;
 
 
 public class Client {
@@ -19,12 +15,15 @@ public class Client {
     private final UserInputHandler inputHandler;
     private final NetworkManager networkManager;
     private static final Set<String> executingScripts = new HashSet<>();
+    private List<String> commandHistory;
+    private static final int HISTORY_SIZE = 15;
 
 
     public Client() throws IOException {
         this.consoleScanner = new Scanner(System.in);
         this.inputHandler = new UserInputHandler(consoleScanner);
         this.networkManager = new NetworkManager();
+        this.commandHistory = new ArrayList<>();
     }
 
     public void run() {
@@ -49,6 +48,19 @@ public class Client {
                 System.out.println("Завершение работы клиента...");
                 break;
             }
+
+            if (line.equalsIgnoreCase("history")) {
+                if (commandHistory == null) {
+                    System.out.println("История команд пуста.");
+                    continue;
+                }
+                System.out.println("Последние " + Math.min(HISTORY_SIZE, commandHistory.size()) + " команд:");
+                for (int i = 0; i < commandHistory.size(); i++) {
+                    System.out.println((i + 1) + ". " + commandHistory.get(i));
+                }
+                continue;
+            }
+
             if (line.toLowerCase().startsWith("execute_script")) {
                 String[] parts = line.split("\\s+", 2);
                 if (parts.length < 2) {
@@ -78,19 +90,12 @@ public class Client {
             String argsString = parts.length > 1 ? parts[1] : null;
             Object argument;
 
+            this.commandHistory.add(commandName);
+
             switch (commandName) {
-                case "help":
-                case "info":
-                case "show":
-                case "clear":
-                case "remove_head":
-                case "group_counting_by_start_date":
-                case "print_field_ascending_salary":
-                    argument = argsString;
-                    break;
                 case "add":
+                case "add_if_min":
                 case "add_if_max":
-                case "remove_lower":
                     System.out.println("Введите данные для работника:");
                     argument = inputHandler.readWorker(false);
                     break;
@@ -104,14 +109,6 @@ public class Client {
                 case "remove_by_id":
                     if (argsString == null) throw new IllegalArgumentException("Требуется ID для команды remove_by_id.");
                     argument = inputHandler.parseLong(argsString, "ID");
-                    break;
-                case "remove_any_by_start_date":
-                    if (argsString == null) throw new IllegalArgumentException("Требуется дата для команды remove_any_by_start_date.");
-                    try {
-                        argument = LocalDateTime.parse(argsString);
-                    } catch (Exception e) {
-                        throw new IllegalArgumentException("Неверный формат даты для remove_any_by_start_date (YYYY-MM-DDTHH:mm:ss).");
-                    }
                     break;
                 default:
                     argument = argsString;
@@ -174,6 +171,17 @@ public class Client {
                     continue;
                 }
 
+                if (scriptLine.equalsIgnoreCase("history")) {
+                    if (commandHistory == null) {
+                        System.out.println("История команд пуста.");
+                        continue;
+                    }
+                    System.out.println("Последние " + Math.min(HISTORY_SIZE, commandHistory.size()) + " команд:");
+                    for (int i = 0; i < commandHistory.size(); i++) {
+                        System.out.println((i + 1) + ". " + commandHistory.get(i));
+                    }
+                    continue;
+                }
 
                 if (scriptLine.toLowerCase().startsWith("execute_script")) {
                     String[] parts = scriptLine.split("\\s+", 2);
