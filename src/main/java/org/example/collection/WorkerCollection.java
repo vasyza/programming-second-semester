@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 
 /**
  * Класс для управления коллекцией работников.
- * Обеспечивает загрузку, сохранение и манипуляцию элементами коллекции.
  */
 public class WorkerCollection {
     private final LinkedList<Worker> workers;
@@ -22,7 +21,6 @@ public class WorkerCollection {
     private String filePath;
 
     /**
-     * Конструктор класса WorkerCollection.
      * Инициализирует пустую коллекцию и устанавливает дату инициализации.
      */
     public WorkerCollection() {
@@ -42,7 +40,6 @@ public class WorkerCollection {
         workers.clear();
 
         try (Scanner scanner = new Scanner(new java.io.File(filePath))) {
-            // Пропускаем заголовок, если он есть
             if (scanner.hasNextLine()) {
                 scanner.nextLine();
             }
@@ -65,7 +62,6 @@ public class WorkerCollection {
                 }
             }
 
-            // Устанавливаем следующий ID для генерации
             IdGenerator.setNextId(maxId + 1);
         }
     }
@@ -81,11 +77,9 @@ public class WorkerCollection {
         }
 
         try (FileWriter writer = new FileWriter(filePath)) {
-            // Записываем заголовок
             writer.write(
                     "id,name,coordinates_x,coordinates_y,creationDate,salary,startDate,endDate,position,organization_annualTurnover,organization_type\n");
 
-            // Записываем данные
             DateTimeFormatter dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE;
             DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
             DateTimeFormatter zonedDateTimeFormatter = DateTimeFormatter.ISO_ZONED_DATE_TIME;
@@ -186,7 +180,7 @@ public class WorkerCollection {
      * @param id        ID работника для обновления
      * @param newWorker новые данные работника
      * @return true, если работник был обновлен, false - если работник с указанным
-     *         ID не найден
+     * ID не найден
      */
     public boolean updateWorker(Long id, Worker newWorker) {
         for (int i = 0; i < workers.size(); i++) {
@@ -203,7 +197,7 @@ public class WorkerCollection {
      *
      * @param id ID работника для удаления
      * @return true, если работник был удален, false - если работник с указанным ID
-     *         не найден
+     * не найден
      */
     public boolean removeWorkerById(Long id) {
         return workers.removeIf(worker -> worker.getId().equals(id));
@@ -285,8 +279,6 @@ public class WorkerCollection {
 
     /**
      * Возвращает дату инициализации коллекции.
-     *
-     * @return дата инициализации
      */
     public LocalDate getInitializationDate() {
         return initializationDate;
@@ -294,8 +286,6 @@ public class WorkerCollection {
 
     /**
      * Возвращает размер коллекции.
-     *
-     * @return размер коллекции
      */
     public int size() {
         return workers.size();
@@ -303,8 +293,6 @@ public class WorkerCollection {
 
     /**
      * Возвращает тип коллекции.
-     *
-     * @return тип коллекции
      */
     public String getType() {
         return "LinkedList<Worker>";
@@ -312,8 +300,6 @@ public class WorkerCollection {
 
     /**
      * Возвращает список всех работников.
-     *
-     * @return список всех работников
      */
     public List<Worker> getAllWorkers() {
         return new ArrayList<>(workers);
@@ -324,7 +310,7 @@ public class WorkerCollection {
      *
      * @param id ID для проверки
      * @return true, если работник с указанным ID существует, false - если не
-     *         существует
+     * существует
      */
     public boolean existsById(Long id) {
         return workers.stream().anyMatch(worker -> worker.getId().equals(id));
