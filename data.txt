@@ -1,3 +1,1 @@
 id,name,coordinates_x,coordinates_y,creationDate,salary,startDate,endDate,position,organization_annualTurnover,organization_type
-1,123,124.0,124.0,2025-04-04,421,2022-01-01T12:00:00,,,,PUBLIC
-2,asf,124.0,124.0,2025-05-02,,2024-10-10T10:10:00,,,,TRUST

@@ -6,62 +6,56 @@ import org.example.common.response.CommandResponse;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.*;
-
 
 public class Client {
     private final Scanner consoleScanner;
-    private final UserInputHandler inputHandler;
+    private final UserInputHandler globalInputHandler;
     private final NetworkManager networkManager;
-    private static final Set<String> executingScripts = new HashSet<>();
-    private List<String> commandHistory;
+    private final Set<String> executingScripts = new HashSet<>();
+    private final List<String> commandHistory = new ArrayList<>();
     private static final int HISTORY_SIZE = 15;
 
-
-    public Client() throws IOException {
+    public Client() {
         this.consoleScanner = new Scanner(System.in);
-        this.inputHandler = new UserInputHandler(consoleScanner);
+        this.globalInputHandler = new UserInputHandler(consoleScanner);
         this.networkManager = new NetworkManager();
-        this.commandHistory = new ArrayList<>();
     }
 
     public void run() {
         System.out.println("Клиент запущен. Введите 'help' для списка команд.");
 
         while (true) {
-            System.out.print("> ");
+            System.out.print("client> ");
             String line;
             try {
                 line = consoleScanner.nextLine().trim();
             } catch (NoSuchElementException e) {
-                System.out.println("Ввод завершен. Выход.");
+                System.out.println("\nВвод завершен (EOF). Выход.");
                 break;
             }
-
 
             if (line.isEmpty()) {
                 continue;
             }
 
-            if (line.equalsIgnoreCase("exit")) {
+            String commandNameOnly = line.split("\\s+")[0].toLowerCase();
+            if (!commandNameOnly.equals("history")) {
+                addToHistory(commandNameOnly);
+            }
+
+
+            if (commandNameOnly.equalsIgnoreCase("exit")) {
                 System.out.println("Завершение работы клиента...");
                 break;
             }
 
-            if (line.equalsIgnoreCase("history")) {
-                if (commandHistory == null) {
-                    System.out.println("История команд пуста.");
-                    continue;
-                }
-                System.out.println("Последние " + Math.min(HISTORY_SIZE, commandHistory.size()) + " команд:");
-                for (int i = 0; i < commandHistory.size(); i++) {
-                    System.out.println((i + 1) + ". " + commandHistory.get(i));
-                }
+            if (commandNameOnly.equalsIgnoreCase("history")) {
+                printHistory();
                 continue;
             }
 
-            if (line.toLowerCase().startsWith("execute_script")) {
+            if (commandNameOnly.equalsIgnoreCase("execute_script")) {
                 String[] parts = line.split("\\s+", 2);
                 if (parts.length < 2) {
                     System.out.println("Ошибка: Не указано имя файла для execute_script.");
@@ -69,46 +63,83 @@ public class Client {
                 }
                 executeScript(parts[1]);
             } else {
-                processAndSendCommand(line);
+                processAndSendCommand(line, globalInputHandler, false);
             }
         }
 
-        try {
-            networkManager.close();
-        } catch (IOException e) {
-            System.err.println("Ошибка при закрытии сетевых ресурсов: " + e.getMessage());
-        }
+        networkManager.closeConnection(); // Закрываем соединение при выходе
         consoleScanner.close();
         System.out.println("Клиент остановлен.");
     }
 
+    private void addToHistory(String commandName) {
+        if (commandHistory.size() >= HISTORY_SIZE) {
+            commandHistory.remove(0);
+        }
+        commandHistory.add(commandName);
+    }
 
-    private void processAndSendCommand(String line) {
+    private void printHistory() {
+        if (commandHistory.isEmpty()) {
+            System.out.println("История команд пуста.");
+            return;
+        }
+        System.out.println("Последние " + commandHistory.size() + " команд:");
+        for (int i = 0; i < commandHistory.size(); i++) {
+            System.out.println((i + 1) + ". " + commandHistory.get(i));
+        }
+    }
+
+    private void processAndSendCommand(String line, UserInputHandler inputHandler, boolean fromScript) {
         try {
             String[] parts = line.split("\\s+", 2);
             String commandName = parts[0].toLowerCase();
             String argsString = parts.length > 1 ? parts[1] : null;
             Object argument;
 
-            this.commandHistory.add(commandName);
+            if (commandName.equals("save")) {
+                System.out.println("Команда 'save' не доступна на клиенте. Сохранение выполняется на сервере.");
+                return;
+            }
 
             switch (commandName) {
                 case "add":
                 case "add_if_min":
                 case "add_if_max":
-                    System.out.println("Введите данные для работника:");
-                    argument = inputHandler.readWorker(false);
+                    if (!fromScript) System.out.println("Введите данные для работника:");
+                    try {
+                        argument = inputHandler.readWorker(fromScript);
+                    } catch (IllegalArgumentException | IllegalStateException e) {
+                        System.out.println("Ошибка ввода данных для работника" + (fromScript ? " в скрипте" : "") + ": " + e.getMessage());
+                        return;
+                    }
                     break;
                 case "update":
-                    if (argsString == null) throw new IllegalArgumentException("Требуется ID работника для команды update.");
-                    Long updateId = inputHandler.parseLong(argsString, "ID");
-                    System.out.println("Введите новые данные для работника с ID " + updateId + ":");
-                    Worker updateData = inputHandler.readWorker(false);
-                    argument = new Object[]{updateId, updateData};
+                    if (argsString == null) {
+                        System.out.println("Ошибка: Требуется ID работника для команды 'update'.");
+                        return;
+                    }
+                    try {
+                        Long updateId = inputHandler.parseLong(argsString.trim(), "ID");
+                        if (!fromScript) System.out.println("Введите новые данные для работника с ID " + updateId + ":");
+                        Worker updateData = inputHandler.readWorker(fromScript);
+                        argument = new Object[]{updateId, updateData};
+                    } catch (IllegalArgumentException | IllegalStateException e) {
+                        System.out.println("Ошибка ввода данных для 'update'" + (fromScript ? " в скрипте" : "") + ": " + e.getMessage());
+                        return;
+                    }
                     break;
                 case "remove_by_id":
-                    if (argsString == null) throw new IllegalArgumentException("Требуется ID для команды remove_by_id.");
-                    argument = inputHandler.parseLong(argsString, "ID");
+                    if (argsString == null) {
+                        System.out.println("Ошибка: Требуется ID для команды 'remove_by_id'.");
+                        return;
+                    }
+                    try {
+                        argument = inputHandler.parseLong(argsString.trim(), "ID");
+                    } catch (IllegalArgumentException e) {
+                        System.out.println("Ошибка ввода ID для 'remove_by_id'" + (fromScript ? " в скрипте" : "") + ": " + e.getMessage());
+                        return;
+                    }
                     break;
                 default:
                     argument = argsString;
@@ -116,101 +147,107 @@ public class Client {
             }
 
             CommandRequest request = new CommandRequest(commandName, argument);
-
-            networkManager.sendRequest(request);
-            Optional<CommandResponse> responseOpt = networkManager.receiveResponse();
+            Optional<CommandResponse> responseOpt = networkManager.sendRequest(request);
 
             if (responseOpt.isPresent()) {
                 CommandResponse response = responseOpt.get();
                 System.out.println("\n--- Ответ Сервера ---");
-                System.out.println(response);
+                if (response.getMessage() != null && !response.getMessage().isEmpty()) {
+                    System.out.println(response.getMessage());
+                }
+                if (response.getResultData() != null) {
+                    if (response.getResultData() instanceof List<?> listResult) {
+                        if (!listResult.isEmpty()) {
+                            listResult.forEach(System.out::println);
+                        }
+                    } else {
+                        System.out.println("Данные: " + response.getResultData());
+                    }
+                }
+                if (!response.isSuccess() && (response.getMessage() == null || response.getMessage().isEmpty())) {
+                    System.out.println("Команда не выполнена успешно (дополнительных сообщений нет).");
+                }
                 System.out.println("---------------------\n");
             } else {
-                System.out.println("\n--- Ошибка ---");
-                System.out.println("Сервер не ответил в течение таймаута.");
-                System.out.println("--------------\n");
+                System.out.println("\n--- Ошибка Сети ---");
+                System.out.println("Не удалось получить ответ от сервера. Сервер может быть недоступен или произошла ошибка сети.");
+                System.out.println("Попробуйте выполнить команду позже или проверьте соединение.");
+                System.out.println("-------------------\n");
             }
 
-
         } catch (IllegalArgumentException e) {
-            System.out.println("Ошибка ввода: " + e.getMessage());
-        } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Сетевая ошибка или ошибка десериализации: " + e.getMessage());
+            System.out.println("Ошибка ввода на клиенте: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("Произошла непредвиденная ошибка клиента: " + e.getMessage());
+            System.err.println("Произошла непредвиденная ошибка на клиенте: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-
     private void executeScript(String filePath) {
-        if (executingScripts.contains(filePath)) {
-            System.out.println("Ошибка: Обнаружена рекурсия в скрипте! Файл: " + filePath);
-            return;
-        }
-
         File scriptFile = new File(filePath);
-        if (!scriptFile.exists() || !scriptFile.canRead()) {
-            System.out.println("Ошибка: Не удается прочитать файл скрипта: " + filePath);
+        String absolutePath = scriptFile.getAbsolutePath();
+
+        if (executingScripts.contains(absolutePath)) {
+            System.out.println("Ошибка: Обнаружена рекурсия в скрипте! Файл уже выполняется: " + absolutePath);
             return;
         }
 
-        executingScripts.add(filePath);
+        if (!scriptFile.exists() || !scriptFile.isFile() || !scriptFile.canRead()) {
+            System.out.println("Ошибка: Не удается прочитать файл скрипта: " + filePath + " (Проверьте путь и права доступа)");
+            return;
+        }
+
+        executingScripts.add(absolutePath);
         System.out.println("--- Начало выполнения скрипта: " + filePath + " ---");
+
         try (Scanner scriptScanner = new Scanner(scriptFile)) {
+            UserInputHandler scriptInputHandler = new UserInputHandler(scriptScanner);
             while (scriptScanner.hasNextLine()) {
                 String scriptLine = scriptScanner.nextLine().trim();
                 if (scriptLine.isEmpty() || scriptLine.startsWith("#")) {
                     continue;
                 }
-                System.out.println("> " + scriptLine);
+                System.out.println("Выполнение из скрипта '" + filePath + "': " + scriptLine);
+
+                String commandNameOnly = scriptLine.split("\\s+")[0].toLowerCase();
+                if (!commandNameOnly.equals("history")) {
+                    addToHistory(commandNameOnly);
+                }
 
 
-                if (scriptLine.equalsIgnoreCase("exit")) {
+                if (commandNameOnly.equalsIgnoreCase("exit")) {
                     System.out.println("Команда 'exit' в скрипте игнорируется.");
                     continue;
                 }
-
-                if (scriptLine.equalsIgnoreCase("history")) {
-                    if (commandHistory == null) {
-                        System.out.println("История команд пуста.");
-                        continue;
-                    }
-                    System.out.println("Последние " + Math.min(HISTORY_SIZE, commandHistory.size()) + " команд:");
-                    for (int i = 0; i < commandHistory.size(); i++) {
-                        System.out.println((i + 1) + ". " + commandHistory.get(i));
-                    }
+                if (commandNameOnly.equalsIgnoreCase("history")) {
+                    printHistory();
                     continue;
                 }
 
-                if (scriptLine.toLowerCase().startsWith("execute_script")) {
+                if (commandNameOnly.equalsIgnoreCase("execute_script")) {
                     String[] parts = scriptLine.split("\\s+", 2);
                     if (parts.length > 1) {
                         executeScript(parts[1]);
                     } else {
-                        System.out.println("Ошибка в скрипте: Не указано имя файла для execute_script.");
+                        System.out.println("Ошибка в скрипте: Не указано имя файла для вложенного execute_script.");
                     }
                 } else {
-                    processAndSendCommand(scriptLine);
+                    processAndSendCommand(scriptLine, scriptInputHandler, true);
                 }
             }
         } catch (FileNotFoundException e) {
-            System.out.println("Ошибка: Файл скрипта не найден (хотя он существовал): " + filePath);
+            System.out.println("Критическая ошибка: Файл скрипта не найден, хотя проверка пройдена: " + filePath);
         } catch (Exception e) {
-            System.out.println("Ошибка во время выполнения скрипта: " + e.getMessage());
+            System.out.println("Ошибка во время выполнения скрипта '" + filePath + "': " + e.getMessage());
+            e.printStackTrace();
         } finally {
-            executingScripts.remove(filePath);
+            executingScripts.remove(absolutePath);
             System.out.println("--- Конец выполнения скрипта: " + filePath + " ---");
         }
     }
 
-
     public static void main(String[] args) {
-        try {
-            Client client = new Client();
-            client.run();
-        } catch (IOException e) {
-            System.err.println("Не удалось запустить клиент: " + e.getMessage());
-        }
+        Client client = new Client();
+        client.run();
     }
 }

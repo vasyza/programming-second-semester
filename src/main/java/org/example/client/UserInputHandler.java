@@ -5,40 +5,31 @@ import org.example.common.model.*;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 
-/**
- * Класс для обработки пользовательского ввода.
- * Содержит методы для чтения различных типов данных из консоли или скрипта.
- */
 public class UserInputHandler {
     private final Scanner scanner;
 
-    /**
-     * Конструктор класса InputHandler.
-     *
-     * @param scanner сканнер для чтения ввода пользователя
-     */
     public UserInputHandler(Scanner scanner) {
         this.scanner = scanner;
     }
 
-    /**
-     * Читает данные работника из ввода пользователя.
-     *
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @return новый объект Worker
-     */
     public Worker readWorker(boolean fromScript) {
-        String name = readString("Введите имя работника: ", fromScript, false);
-        Float x = readFloat("Введите координату x: ", fromScript, false);
-        Double y = readDouble("Введите координату y (> -72): ", fromScript, false);
-        Long salary = readLong("Введите зарплату (> 0, или пустая строка для null): ", fromScript, true);
-        LocalDateTime startDate = readLocalDateTime("Введите дату начала работы (в формате yyyy-MM-ddTHH:mm:ss): ", fromScript, false);
-        ZonedDateTime endDate = readZonedDateTime("Введите дату окончания работы (в формате yyyy-MM-ddTHH:mm:ss+ZZ:ZZ, или пустая строка для null): ", fromScript, true);
-        Position position = readPosition("Введите должность " + Position.getAllValues() + " (или пустая строка для null): ", fromScript, true);
-        Integer annualTurnover = readInteger("Введите годовой оборот организации (> 0, или пустая строка для null): ", fromScript, true);
-        OrganizationType organizationType = readOrganizationType("Введите тип организации " + OrganizationType.getAllValues() + ": ", fromScript, false);
+        String name = readString(fromScript ? null : "Введите имя работника: ", fromScript, false);
+        Float x = readFloat(fromScript ? null : "Введите координату x: ", fromScript, false);
+        Double y = readDouble(fromScript ? null : "Введите координату y (> -72): ", fromScript, false);
+        Long salary = readLong(fromScript ? null : "Введите зарплату (> 0, или пустая строка для null): ", fromScript, true, true);
+        LocalDateTime startDate = readLocalDateTime(fromScript ? null : "Введите дату начала работы (гггг-ММ-ддТЧЧ:мм:сс): ", fromScript, false);
+        ZonedDateTime endDate = readZonedDateTime(fromScript ? null : "Введите дату окончания работы (гггг-ММ-ддТЧЧ:мм:сс+ЧЧ:ММ, или пустая строка для null): ", fromScript, true);
+
+        String positionPrompt = "Введите должность " + Position.getAllValues() + " (или пустая строка для null): ";
+        Position position = readPosition(fromScript ? null : positionPrompt, fromScript, true);
+
+        Integer annualTurnover = readInteger(fromScript ? null : "Введите годовой оборот организации (> 0, или пустая строка для null): ", fromScript, true, true);
+
+        String orgTypePrompt = "Введите тип организации " + OrganizationType.getAllValues() + ": ";
+        OrganizationType organizationType = readOrganizationType(fromScript ? null : orgTypePrompt, fromScript, false);
 
         Coordinates coordinates = new Coordinates(x, y);
         Organization organization = new Organization(annualTurnover, organizationType);
@@ -46,293 +37,175 @@ public class UserInputHandler {
         return new Worker(null, name, coordinates, null, salary, startDate, endDate, position, organization);
     }
 
-    /**
-     * Читает строку из ввода пользователя.
-     *
-     * @param prompt     приглашение к вводу
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
-     * @return введенная строка или null, если ввод пуст и allowEmpty=true
-     */
     public String readString(String prompt, boolean fromScript, boolean allowEmpty) {
-        while (true) {
-            if (!fromScript) {
-                System.out.print(prompt);
-            }
-
-            String input;
-            if (scanner.hasNextLine()) {
-                input = scanner.nextLine().trim();
-            } else {
-                throw new IllegalStateException("Достигнут конец ввода.");
-            }
-
-            if (input.isEmpty()) {
-                if (allowEmpty) {
-                    return null;
-                } else if (fromScript) {
-                    throw new IllegalArgumentException("Пустая строка не допускается.");
-                } else {
-                    System.out.println("Пустая строка не допускается. Повторите ввод.");
-                    continue;
-                }
-            }
-
-            return input;
+        if (!fromScript && prompt != null) {
+            System.out.print(prompt);
         }
+        String input;
+        try {
+            input = scanner.nextLine().trim();
+        } catch (NoSuchElementException e) {
+            String errorMsg = "Достигнут конец ввода" + (fromScript ? " в скрипте" : "") + ".";
+            if (fromScript) throw new IllegalStateException(errorMsg, e);
+            System.err.println("\n" + errorMsg + " Завершение работы клиента.");
+            System.exit(0);
+            return null;
+        }
+
+        if (input.isEmpty()) {
+            if (allowEmpty) return null;
+            String errorMsg = "Это поле не может быть пустым.";
+            if (fromScript) throw new IllegalArgumentException(errorMsg);
+            System.err.println(errorMsg + " Повторите ввод.");
+            return readString(prompt, false, false);
+        }
+        return input;
     }
 
-    /**
-     * Читает целое число типа Integer из ввода пользователя.
-     *
-     * @param prompt     приглашение к вводу
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
-     * @return введенное число или null, если ввод пуст и allowEmpty=true
-     */
-    public Integer readInteger(String prompt, boolean fromScript, boolean allowEmpty) {
+    private <T extends Number> T readNumber(String prompt, boolean fromScript, boolean allowEmpty, boolean allowZeroOrNegative, java.util.function.Function<String, T> parser, java.util.function.Predicate<T> validator, String validationErrorMsg) {
         while (true) {
             String input = readString(prompt, fromScript, allowEmpty);
-            if (input == null) {
-                return null;
-            }
+            if (input == null && allowEmpty) return null;
+            if (input == null && fromScript)
+                throw new IllegalArgumentException("Пустой ввод не разрешен для этого числового поля в скрипте.");
+
 
             try {
-                int value = Integer.parseInt(input);
-                if (value <= 0) {
-                    if (fromScript) {
-                        throw new IllegalArgumentException("Значение должно быть больше 0.");
-                    }
-                    System.out.println("Значение должно быть больше 0. Повторите ввод.");
-                    continue;
+                T value = parser.apply(input);
+                if (!allowZeroOrNegative && (value.doubleValue() <= 0)) {
+                    String errorMsg = "Значение должно быть больше 0.";
+                    if (fromScript) throw new IllegalArgumentException(errorMsg);
+                    System.err.println(errorMsg + " Повторите ввод.");
+                }
+                if (!validator.test(value)) {
+                    String errorMsg = validationErrorMsg != null ? validationErrorMsg : "Недопустимое значение.";
+                    if (fromScript) throw new IllegalArgumentException(errorMsg);
+                    System.err.println(errorMsg + " Повторите ввод.");
                 }
                 return value;
             } catch (NumberFormatException e) {
-                if (fromScript) {
-                    throw new IllegalArgumentException("Некорректный формат числа: " + input);
-                }
-                System.out.println("Некорректный формат числа. Повторите ввод.");
+                String errorMsg = "Некорректный формат числа: " + input;
+                if (fromScript) throw new IllegalArgumentException(errorMsg);
+                System.err.println(errorMsg + ". Повторите ввод.");
             }
         }
     }
 
-    /**
-     * Читает целое число типа Long из ввода пользователя.
-     *
-     * @param prompt     приглашение к вводу
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
-     * @return введенное число или null, если ввод пуст и allowEmpty=true
-     */
-    public Long readLong(String prompt, boolean fromScript, boolean allowEmpty) {
-        while (true) {
-            String input = readString(prompt, fromScript, allowEmpty);
-            if (input == null) {
-                return null;
-            }
-
-            try {
-                long value = Long.parseLong(input);
-                if (value <= 0) {
-                    if (fromScript) {
-                        throw new IllegalArgumentException("Значение должно быть больше 0.");
-                    }
-                    System.out.println("Значение должно быть больше 0. Повторите ввод.");
-                    continue;
-                }
-                return value;
-            } catch (NumberFormatException e) {
-                if (fromScript) {
-                    throw new IllegalArgumentException("Некорректный формат числа: " + input);
-                }
-                System.out.println("Некорректный формат числа. Повторите ввод.");
-            }
-        }
+    public Integer readInteger(String prompt, boolean fromScript, boolean allowEmpty, boolean isAnnualTurnover) {
+        return readNumber(prompt, fromScript, allowEmpty, !isAnnualTurnover, Integer::parseInt, val -> !isAnnualTurnover || val > 0, isAnnualTurnover ? "Годовой оборот должен быть больше 0." : "Значение Integer должно быть > 0 (если не null).");
     }
 
-    /**
-     * Читает число с плавающей точкой типа Float из ввода пользователя.
-     *
-     * @param prompt     приглашение к вводу
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
-     * @return введенное число или null, если ввод пуст и allowEmpty=true
-     */
+
+    public Long readLong(String prompt, boolean fromScript, boolean allowEmpty, boolean isSalaryField) {
+        return readNumber(prompt, fromScript, allowEmpty, !isSalaryField, Long::parseLong, val -> !isSalaryField || val > 0, isSalaryField ? "Зарплата должна быть больше 0." : "Значение Long должно быть > 0.");
+    }
+
     public Float readFloat(String prompt, boolean fromScript, boolean allowEmpty) {
-        while (true) {
-            String input = readString(prompt, fromScript, allowEmpty);
-            if (input == null) {
-                return null;
-            }
-
-            try {
-                return Float.parseFloat(input);
-            } catch (NumberFormatException e) {
-                if (fromScript) {
-                    throw new IllegalArgumentException("Некорректный формат числа: " + input);
-                }
-                System.out.println("Некорректный формат числа. Повторите ввод.");
-            }
-        }
+        return readNumber(prompt, fromScript, allowEmpty, true, Float::parseFloat, val -> true, null);
     }
 
-    /**
-     * Читает число с плавающей точкой типа Double из ввода пользователя.
-     *
-     * @param prompt     приглашение к вводу
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
-     * @return введенное число или null, если ввод пуст и allowEmpty=true
-     */
     public Double readDouble(String prompt, boolean fromScript, boolean allowEmpty) {
-        while (true) {
-            String input = readString(prompt, fromScript, allowEmpty);
-            if (input == null) {
-                return null;
-            }
-
-            try {
-                double value = Double.parseDouble(input);
-                if (value <= -72) {
-                    if (fromScript) {
-                        throw new IllegalArgumentException("Значение должно быть больше -72.");
-                    }
-                    System.out.println("Значение должно быть больше -72. Повторите ввод.");
-                    continue;
-                }
-                return value;
-            } catch (NumberFormatException e) {
-                if (fromScript) {
-                    throw new IllegalArgumentException("Некорректный формат числа: " + input);
-                }
-                System.out.println("Некорректный формат числа. Повторите ввод.");
-            }
-        }
+        return readNumber(prompt, fromScript, allowEmpty, true, Double::parseDouble, val -> val > -72, "Значение координаты Y должно быть больше -72.");
     }
 
-    /**
-     * Читает дату и время типа LocalDateTime из ввода пользователя.
-     *
-     * @param prompt     приглашение к вводу
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
-     * @return введенная дата и время или null, если ввод пуст и allowEmpty=true
-     */
     public LocalDateTime readLocalDateTime(String prompt, boolean fromScript, boolean allowEmpty) {
         while (true) {
             String input = readString(prompt, fromScript, allowEmpty);
-            if (input == null) {
-                return null;
-            }
+            if (input == null && allowEmpty) return null;
+            if (input == null && fromScript)
+                throw new IllegalArgumentException("Пустой ввод не разрешен для LocalDateTime в скрипте.");
 
             try {
+                assert input != null;
                 return LocalDateTime.parse(input);
             } catch (DateTimeParseException e) {
-                if (fromScript) {
-                    throw new IllegalArgumentException("Некорректный формат даты и времени: " + input);
-                }
-                System.out.println("Некорректный формат даты и времени. Используйте формат yyyy-MM-ddTHH:mm:ss. Повторите ввод.");
+                String errorMsg = "Некорректный формат даты и времени (ожидается гггг-ММ-ддТЧЧ:мм:сс): " + input;
+                if (fromScript) throw new IllegalArgumentException(errorMsg);
+                System.err.println(errorMsg + ". Повторите ввод.");
             }
         }
     }
 
-    /**
-     * Читает дату и время с часовым поясом типа ZonedDateTime из ввода
-     * пользователя.
-     *
-     * @param prompt     приглашение к вводу
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
-     * @return введенная дата и время с часовым поясом или null, если ввод пуст и
-     * allowEmpty=true
-     */
     public ZonedDateTime readZonedDateTime(String prompt, boolean fromScript, boolean allowEmpty) {
         while (true) {
             String input = readString(prompt, fromScript, allowEmpty);
-            if (input == null) {
-                return null;
-            }
+            if (input == null && allowEmpty) return null;
+            if (input == null && fromScript)
+                throw new IllegalArgumentException("Пустой ввод не разрешен для ZonedDateTime в скрипте.");
+
 
             try {
+                assert input != null;
                 return ZonedDateTime.parse(input);
             } catch (DateTimeParseException e) {
-                if (fromScript) {
-                    throw new IllegalArgumentException("Некорректный формат даты и времени с часовым поясом: " + input);
-                }
-                System.out.println("Некорректный формат даты и времени с часовым поясом. Используйте формат yyyy-MM-ddTHH:mm:ss+ZZ:ZZ. Повторите ввод.");
+                String errorMsg = "Некорректный формат даты и времени с зоной (ожидается гггг-ММ-ддТЧЧ:мм:сс+ЧЧ:ММ[Зона]): " + input;
+                if (fromScript) throw new IllegalArgumentException(errorMsg);
+                System.err.println(errorMsg + ". Повторите ввод.");
             }
         }
     }
 
-    /**
-     * Читает должность типа Position из ввода пользователя.
-     *
-     * @param prompt     приглашение к вводу
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
-     * @return введенная должность или null, если ввод пуст и allowEmpty=true
-     */
     public Position readPosition(String prompt, boolean fromScript, boolean allowEmpty) {
         while (true) {
-            String input = readString(prompt, fromScript, allowEmpty);
-            if (input == null) {
-                return null;
+            if (!fromScript && prompt != null) {
+                System.out.print(prompt);
             }
+            String input = readString(null, fromScript, allowEmpty);
+            if (input == null && allowEmpty) return null;
+            if (input == null && fromScript)
+                throw new IllegalArgumentException("Пустой ввод не разрешен для Position в скрипте.");
+
 
             try {
+                assert input != null;
                 return Position.valueOf(input.toUpperCase());
             } catch (IllegalArgumentException e) {
-                if (fromScript) {
-                    throw new IllegalArgumentException("Некорректное значение должности: " + input);
-                }
-                System.out.println("Некорректное значение должности. Допустимые значения: " + Position.getAllValues() + ". Повторите ввод.");
+                String errorMsg = "Некорректное значение должности. Допустимые значения: " + Position.getAllValues();
+                if (fromScript) throw new IllegalArgumentException(errorMsg + ". Получено: " + input);
+                System.err.println(errorMsg + ". Повторите ввод.");
             }
         }
     }
 
-    /**
-     * Читает тип организации типа OrganizationType из ввода пользователя.
-     *
-     * @param prompt     приглашение к вводу
-     * @param fromScript флаг, указывающий, выполняется ли команда из скрипта
-     * @param allowEmpty флаг, указывающий, разрешена ли пустая строка
-     * @return введенный тип организации или null, если ввод пуст и allowEmpty=true
-     */
     public OrganizationType readOrganizationType(String prompt, boolean fromScript, boolean allowEmpty) {
         while (true) {
-            String input = readString(prompt, fromScript, allowEmpty);
-            if (input == null) {
-                return null;
+            if (!fromScript && prompt != null) {
+                System.out.print(prompt);
             }
+            String input = readString(null, fromScript, allowEmpty);
+            if (input == null && allowEmpty) return null;
+            if (input == null && fromScript)
+                throw new IllegalArgumentException("Пустой ввод не разрешен для OrganizationType в скрипте.");
+
 
             try {
+                assert input != null;
                 return OrganizationType.valueOf(input.toUpperCase());
             } catch (IllegalArgumentException e) {
-                if (fromScript) {
-                    throw new IllegalArgumentException("Некорректное значение типа организации: " + input);
-                }
-                System.out.println("Некорректное значение типа организации. Допустимые значения: " + OrganizationType.getAllValues() + ". Повторите ввод.");
+                String errorMsg = "Некорректное значение типа организации. Допустимые значения: " + OrganizationType.getAllValues();
+                if (fromScript) throw new IllegalArgumentException(errorMsg + ". Получено: " + input);
+                System.err.println(errorMsg + ". Повторите ввод.");
             }
         }
     }
 
     /**
-     * Парсит Long из строки.
+     * Парсит Long из строки. Используется для ID в командах update, remove_by_id.
      *
-     * @param str       строка для парсинга
-     * @param fieldName имя поля для сообщения об ошибке
-     * @return распарсенное значение
-     * @throws IllegalArgumentException если строка не может быть преобразована в
-     *                                  Long
+     * @throws IllegalArgumentException если строка не может быть преобразована в Long или <= 0.
      */
     public Long parseLong(String str, String fieldName) {
         if (str == null || str.trim().isEmpty()) {
             throw new IllegalArgumentException(fieldName + " не может быть пустым.");
         }
         try {
-            return Long.parseLong(str.trim());
+            long value = Long.parseLong(str.trim());
+            if (value <= 0) {
+                throw new IllegalArgumentException(fieldName + " должен быть больше 0.");
+            }
+            return value;
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Некорректный формат " + fieldName + ": " + str);
+            throw new IllegalArgumentException("Некорректный формат " + fieldName + ": '" + str + "'. Ожидалось целое число больше 0.");
         }
     }
 }
