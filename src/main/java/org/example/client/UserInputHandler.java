@@ -76,11 +76,13 @@ public class UserInputHandler {
                     String errorMsg = "Значение должно быть больше 0.";
                     if (fromScript) throw new IllegalArgumentException(errorMsg);
                     System.err.println(errorMsg + " Повторите ввод.");
+                    continue;
                 }
                 if (!validator.test(value)) {
                     String errorMsg = validationErrorMsg != null ? validationErrorMsg : "Недопустимое значение.";
                     if (fromScript) throw new IllegalArgumentException(errorMsg);
                     System.err.println(errorMsg + " Повторите ввод.");
+                    continue;
                 }
                 return value;
             } catch (NumberFormatException e) {

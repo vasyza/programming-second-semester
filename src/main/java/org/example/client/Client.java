@@ -121,7 +121,8 @@ public class Client {
                     }
                     try {
                         Long updateId = inputHandler.parseLong(argsString.trim(), "ID");
-                        if (!fromScript) System.out.println("Введите новые данные для работника с ID " + updateId + ":");
+                        if (!fromScript)
+                            System.out.println("Введите новые данные для работника с ID " + updateId + ":");
                         Worker updateData = inputHandler.readWorker(fromScript);
                         argument = new Object[]{updateId, updateData};
                     } catch (IllegalArgumentException | IllegalStateException e) {
@@ -171,7 +172,6 @@ public class Client {
             } else {
                 System.out.println("\n--- Ошибка Сети ---");
                 System.out.println("Не удалось получить ответ от сервера. Сервер может быть недоступен или произошла ошибка сети.");
-                System.out.println("Попробуйте выполнить команду позже или проверьте соединение.");
                 System.out.println("-------------------\n");
             }
 
