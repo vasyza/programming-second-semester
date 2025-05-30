@@ -4,18 +4,31 @@
         <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
         </Console>
-        <File name="LogFile" fileName="server.log">
+
+        <File name="FileAppender" fileName="C:/Users/fafatypoty/IdeaProjects/prog-sem-2-lab-1/logs/server.log">
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
         </File>
+
+        <RollingFile name="RollingFileAppender"
+                     fileName="C:/Users/fafatypoty/IdeaProjects/prog-sem-2-lab-1/logs/server.log"
+                     filePattern="C:/Users/fafatypoty/IdeaProjects/prog-sem-2-lab-1/logs/server-%i.log.gz">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="5"/>
+        </RollingFile>
     </Appenders>
+
     <Loggers>
-        <Root level="info">
+        <Logger name="org.example.server" level="DEBUG" additivity="false">
             <AppenderRef ref="Console"/>
-            <AppenderRef ref="LogFile"/>
-        </Root>
-        <Logger name="org.example.server" level="debug" additivity="false">
-            <AppenderRef ref="Console"/>
-            <AppenderRef ref="LogFile"/>
+            <AppenderRef ref="RollingFileAppender"/>
         </Logger>
+
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFileAppender"/>
+        </Root>
     </Loggers>
 </Configuration>

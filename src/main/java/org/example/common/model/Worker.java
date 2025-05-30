@@ -14,7 +14,7 @@ import java.util.Objects;
  */
 public class Worker implements Comparable<Worker>, Serializable {
     @Serial
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 101L;
     private Long id;
     private String name;
     private Coordinates coordinates;
@@ -24,10 +24,13 @@ public class Worker implements Comparable<Worker>, Serializable {
     private ZonedDateTime endDate;
     private Position position;
     private Organization organization;
+    private int ownerId;
 
-    public Worker(Long id, String name, Coordinates coordinates, LocalDate creationDate,
-                  Long salary, LocalDateTime startDate, ZonedDateTime endDate,
-                  Position position, Organization organization) {
+    public Worker(String name, Coordinates coordinates, Long salary, LocalDateTime startDate, ZonedDateTime endDate, Position position, Organization organization) {
+        this(null, name, coordinates, null, salary, startDate, endDate, position, organization);
+    }
+
+    public Worker(Long id, String name, Coordinates coordinates, LocalDate creationDate, Long salary, LocalDateTime startDate, ZonedDateTime endDate, Position position, Organization organization) {
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Имя не может быть пустым");
         }
@@ -55,15 +58,45 @@ public class Worker implements Comparable<Worker>, Serializable {
         this.organization = organization;
     }
 
-    public Long getId() { return id; }
-    public String getName() { return name; }
-    public Coordinates getCoordinates() { return coordinates; }
-    public LocalDate getCreationDate() { return creationDate; }
-    public Long getSalary() { return salary; }
-    public LocalDateTime getStartDate() { return startDate; }
-    public ZonedDateTime getEndDate() { return endDate; }
-    public Position getPosition() { return position; }
-    public Organization getOrganization() { return organization; }
+    public Long getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Coordinates getCoordinates() {
+        return coordinates;
+    }
+
+    public LocalDate getCreationDate() {
+        return creationDate;
+    }
+
+    public Long getSalary() {
+        return salary;
+    }
+
+    public LocalDateTime getStartDate() {
+        return startDate;
+    }
+
+    public ZonedDateTime getEndDate() {
+        return endDate;
+    }
+
+    public Position getPosition() {
+        return position;
+    }
+
+    public Organization getOrganization() {
+        return organization;
+    }
+
+    public int getOwnerId() {
+        return ownerId;
+    }
 
     public void setId(Long id) {
         if (id == null || id <= 0) {
@@ -71,38 +104,47 @@ public class Worker implements Comparable<Worker>, Serializable {
         }
         this.id = id;
     }
+
     public void setName(String name) {
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Имя не может быть пустым");
         }
         this.name = name;
     }
+
     public void setCoordinates(Coordinates coordinates) {
         if (coordinates == null) {
             throw new IllegalArgumentException("Координаты не могут быть null");
         }
         this.coordinates = coordinates;
     }
+
     public void setCreationDate(LocalDate creationDate) {
-        if (creationDate == null) {
-            throw new IllegalArgumentException("Дата создания не может быть null");
-        }
         this.creationDate = creationDate;
     }
+
     public void setSalary(Long salary) {
         if (salary != null && salary <= 0) {
             throw new IllegalArgumentException("Зарплата должна быть больше 0");
         }
         this.salary = salary;
     }
+
     public void setStartDate(LocalDateTime startDate) {
         if (startDate == null) {
             throw new IllegalArgumentException("Дата начала работы не может быть null");
         }
         this.startDate = startDate;
     }
-    public void setEndDate(ZonedDateTime endDate) { this.endDate = endDate; }
-    public void setPosition(Position position) { this.position = position; }
+
+    public void setEndDate(ZonedDateTime endDate) {
+        this.endDate = endDate;
+    }
+
+    public void setPosition(Position position) {
+        this.position = position;
+    }
+
     public void setOrganization(Organization organization) {
         if (organization == null) {
             throw new IllegalArgumentException("Организация не может быть null");
@@ -110,32 +152,26 @@ public class Worker implements Comparable<Worker>, Serializable {
         this.organization = organization;
     }
 
+    public void setOwnerId(int ownerId) {
+        this.ownerId = ownerId;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Worker worker = (Worker) o;
-        return Objects.equals(id, worker.id) && Objects.equals(name, worker.name) && Objects.equals(coordinates, worker.coordinates) && Objects.equals(creationDate, worker.creationDate) && Objects.equals(salary, worker.salary) && Objects.equals(startDate, worker.startDate) && Objects.equals(endDate, worker.endDate) && position == worker.position && Objects.equals(organization, worker.organization);
+        return ownerId == worker.ownerId && Objects.equals(id, worker.id) && Objects.equals(name, worker.name) && Objects.equals(coordinates, worker.coordinates) && Objects.equals(creationDate, worker.creationDate) && Objects.equals(salary, worker.salary) && Objects.equals(startDate, worker.startDate) && Objects.equals(endDate, worker.endDate) && position == worker.position && Objects.equals(organization, worker.organization);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, coordinates, creationDate, salary, startDate, endDate, position, organization);
+        return Objects.hash(id, name, coordinates, creationDate, salary, startDate, endDate, position, organization, ownerId);
     }
 
     @Override
     public String toString() {
-        return "Worker{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                ", coordinates=" + coordinates +
-                ", creationDate=" + creationDate +
-                ", salary=" + salary +
-                ", startDate=" + startDate +
-                ", endDate=" + endDate +
-                ", position=" + position +
-                ", organization=" + organization +
-                '}';
+        return "Worker{" + "id=" + id + ", name='" + name + '\'' + ", coordinates=" + coordinates + ", creationDate=" + creationDate + ", salary=" + salary + ", startDate=" + startDate + ", endDate=" + endDate + ", position=" + position + ", organization=" + organization + ", ownerId=" + ownerId + '}';
     }
 
     @Override
@@ -148,7 +184,7 @@ public class Worker implements Comparable<Worker>, Serializable {
 
     public static class LocationComparator implements Comparator<Worker>, Serializable {
         @Serial
-        private static final long serialVersionUID = 6L; // Новый SUID для компаратора
+        private static final long serialVersionUID = 6L;
 
         @Override
         public int compare(Worker w1, Worker w2) {
@@ -156,10 +192,9 @@ public class Worker implements Comparable<Worker>, Serializable {
             Coordinates c2 = w2.getCoordinates();
 
             if (c1 == null && c2 == null) return 0;
-            if (c1 == null) return -1; // w1 (null) < w2 (non-null)
-            if (c2 == null) return 1;  // w1 (non-null) > w2 (null)
+            if (c1 == null) return -1;
+            if (c2 == null) return 1;
 
-            // Оба Coordinates не null, сравниваем X
             Float x1 = c1.getX();
             Float x2 = c2.getX();
             int xCompare;
@@ -172,7 +207,6 @@ public class Worker implements Comparable<Worker>, Serializable {
                 return xCompare;
             }
 
-            // X равны (или оба null), сравниваем Y
             Double y1 = c1.getY();
             Double y2 = c2.getY();
             if (y1 == null && y2 == null) return 0;

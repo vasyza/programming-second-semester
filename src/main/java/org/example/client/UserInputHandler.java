@@ -21,20 +21,49 @@ public class UserInputHandler {
         Double y = readDouble(fromScript ? null : "Введите координату y (> -72): ", fromScript, false);
         Long salary = readLong(fromScript ? null : "Введите зарплату (> 0, или пустая строка для null): ", fromScript, true, true);
         LocalDateTime startDate = readLocalDateTime(fromScript ? null : "Введите дату начала работы (гггг-ММ-ддТЧЧ:мм:сс): ", fromScript, false);
-        ZonedDateTime endDate = readZonedDateTime(fromScript ? null : "Введите дату окончания работы (гггг-ММ-ддТЧЧ:мм:сс+ЧЧ:ММ, или пустая строка для null): ", fromScript, true);
+        ZonedDateTime endDate = readZonedDateTime(fromScript ? null : "Введите дату окончания работы (гггг-ММ-ддТЧЧ:мм:сс[+-]ЧЧ:ММ[ЗонаID], или пустая строка для null): ", fromScript, true);
 
-        String positionPrompt = "Введите должность " + Position.getAllValues() + " (или пустая строка для null): ";
-        Position position = readPosition(fromScript ? null : positionPrompt, fromScript, true);
+        String positionPrompt = "Введите должность из списка [" + Position.getAllValues() + "] (или пустая строка для null): ";
+        Position position = readEnum(Position.class, fromScript ? null : positionPrompt, fromScript, true);
 
         Integer annualTurnover = readInteger(fromScript ? null : "Введите годовой оборот организации (> 0, или пустая строка для null): ", fromScript, true, true);
 
-        String orgTypePrompt = "Введите тип организации " + OrganizationType.getAllValues() + ": ";
-        OrganizationType organizationType = readOrganizationType(fromScript ? null : orgTypePrompt, fromScript, false);
+        String orgTypePrompt = "Введите тип организации из списка [" + OrganizationType.getAllValues() + "]: ";
+        OrganizationType organizationType = readEnum(OrganizationType.class, fromScript ? null : orgTypePrompt, fromScript, false);
 
         Coordinates coordinates = new Coordinates(x, y);
         Organization organization = new Organization(annualTurnover, organizationType);
 
-        return new Worker(null, name, coordinates, null, salary, startDate, endDate, position, organization);
+        return new Worker(name, coordinates, salary, startDate, endDate, position, organization);
+    }
+
+    private <T extends Enum<T>> T readEnum(Class<T> enumClass, String prompt, boolean fromScript, boolean allowEmpty) {
+        while (true) {
+            if (!fromScript && prompt != null) {
+                System.out.print(prompt);
+            }
+            String input = readString(null, fromScript, allowEmpty);
+
+            if (input == null && allowEmpty) return null;
+            if (input == null) {
+                System.err.println("Ошибка: ввод не может быть null здесь. Повторите.");
+                continue;
+            }
+
+            try {
+                return Enum.valueOf(enumClass, input.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                StringBuilder validValues = new StringBuilder();
+                for (T val : enumClass.getEnumConstants()) {
+                    validValues.append(val.name()).append(", ");
+                }
+                if (!validValues.isEmpty()) validValues.setLength(validValues.length() - 2);
+
+                String errorMsg = "Некорректное значение. Допустимые значения для " + enumClass.getSimpleName() + ": " + validValues;
+                if (fromScript) throw new IllegalArgumentException(errorMsg + ". Получено: " + input);
+                System.err.println(errorMsg + ". Повторите ввод.");
+            }
+        }
     }
 
     public String readString(String prompt, boolean fromScript, boolean allowEmpty) {
@@ -69,7 +98,6 @@ public class UserInputHandler {
             if (input == null && fromScript)
                 throw new IllegalArgumentException("Пустой ввод не разрешен для этого числового поля в скрипте.");
 
-
             try {
                 T value = parser.apply(input);
                 if (!allowZeroOrNegative && (value.doubleValue() <= 0)) {
@@ -96,7 +124,6 @@ public class UserInputHandler {
     public Integer readInteger(String prompt, boolean fromScript, boolean allowEmpty, boolean isAnnualTurnover) {
         return readNumber(prompt, fromScript, allowEmpty, !isAnnualTurnover, Integer::parseInt, val -> !isAnnualTurnover || val > 0, isAnnualTurnover ? "Годовой оборот должен быть больше 0." : "Значение Integer должно быть > 0 (если не null).");
     }
-
 
     public Long readLong(String prompt, boolean fromScript, boolean allowEmpty, boolean isSalaryField) {
         return readNumber(prompt, fromScript, allowEmpty, !isSalaryField, Long::parseLong, val -> !isSalaryField || val > 0, isSalaryField ? "Зарплата должна быть больше 0." : "Значение Long должно быть > 0.");
@@ -135,7 +162,6 @@ public class UserInputHandler {
             if (input == null && fromScript)
                 throw new IllegalArgumentException("Пустой ввод не разрешен для ZonedDateTime в скрипте.");
 
-
             try {
                 assert input != null;
                 return ZonedDateTime.parse(input);
@@ -147,54 +173,11 @@ public class UserInputHandler {
         }
     }
 
-    public Position readPosition(String prompt, boolean fromScript, boolean allowEmpty) {
-        while (true) {
-            if (!fromScript && prompt != null) {
-                System.out.print(prompt);
-            }
-            String input = readString(null, fromScript, allowEmpty);
-            if (input == null && allowEmpty) return null;
-            if (input == null && fromScript)
-                throw new IllegalArgumentException("Пустой ввод не разрешен для Position в скрипте.");
-
-
-            try {
-                assert input != null;
-                return Position.valueOf(input.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                String errorMsg = "Некорректное значение должности. Допустимые значения: " + Position.getAllValues();
-                if (fromScript) throw new IllegalArgumentException(errorMsg + ". Получено: " + input);
-                System.err.println(errorMsg + ". Повторите ввод.");
-            }
-        }
-    }
-
-    public OrganizationType readOrganizationType(String prompt, boolean fromScript, boolean allowEmpty) {
-        while (true) {
-            if (!fromScript && prompt != null) {
-                System.out.print(prompt);
-            }
-            String input = readString(null, fromScript, allowEmpty);
-            if (input == null && allowEmpty) return null;
-            if (input == null && fromScript)
-                throw new IllegalArgumentException("Пустой ввод не разрешен для OrganizationType в скрипте.");
-
-
-            try {
-                assert input != null;
-                return OrganizationType.valueOf(input.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                String errorMsg = "Некорректное значение типа организации. Допустимые значения: " + OrganizationType.getAllValues();
-                if (fromScript) throw new IllegalArgumentException(errorMsg + ". Получено: " + input);
-                System.err.println(errorMsg + ". Повторите ввод.");
-            }
-        }
-    }
-
     /**
      * Парсит Long из строки. Используется для ID в командах update, remove_by_id.
      *
-     * @throws IllegalArgumentException если строка не может быть преобразована в Long или <= 0.
+     * @throws IllegalArgumentException если строка не может быть преобразована в
+     *                                  Long или <= 0.
      */
     public Long parseLong(String str, String fieldName) {
         if (str == null || str.trim().isEmpty()) {
@@ -209,5 +192,32 @@ public class UserInputHandler {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Некорректный формат " + fieldName + ": '" + str + "'. Ожидалось целое число больше 0.");
         }
+    }
+
+    public String[] readCredentials(String argsString, String commandName) {
+        String username, password;
+        if (argsString != null && !argsString.isBlank()) {
+            String[] parts = argsString.split("\\s+", 2);
+            if (parts.length == 2) {
+                username = parts[0];
+                password = parts[1];
+                if (username.isEmpty() || password.isEmpty()) {
+                    System.out.println("Ошибка: Имя пользователя и пароль не могут быть пустыми, если указаны в одной строке.");
+                    return null;
+                }
+                return new String[]{username, password};
+            } else {
+                System.out.println("Ошибка: Для команды '" + commandName + "' ожидается <username> <password> в одной строке, либо введите их по запросу.");
+            }
+        }
+        System.out.print("Введите имя пользователя: ");
+        username = readString(null, false, false);
+        if (username == null) return null;
+
+        System.out.print("Введите пароль: ");
+        password = readString(null, false, false);
+        if (password == null) return null;
+
+        return new String[]{username, password};
     }
 }

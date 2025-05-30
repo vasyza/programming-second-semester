@@ -34,25 +34,51 @@ public class NetworkManager {
         this.serverPort = port;
     }
 
-    private boolean establishConnectionInternal() {
-        closeResources();
+    public Optional<CommandResponse> sendRequest(CommandRequest request) {
+        Socket socket = null;
+        ObjectOutputStream oos = null;
+        ObjectInputStream ois = null;
 
         for (int attempt = 1; attempt <= MAX_CONNECTION_ATTEMPTS; attempt++) {
             try {
-                System.out.println("Попытка подключения к серверу " + serverHost + ":" + serverPort + " (попытка " + attempt + "/" + MAX_CONNECTION_ATTEMPTS + ")...");
+                System.out.println("Попытка подключения и отправки запроса '" + request.getCommandName() + "' (попытка " + attempt + "/" + MAX_CONNECTION_ATTEMPTS + ")...");
                 socket = new Socket();
                 socket.connect(new InetSocketAddress(serverHost, serverPort), CONNECTION_TIMEOUT_MS);
                 socket.setSoTimeout(RESPONSE_TIMEOUT_MS);
 
                 oos = new ObjectOutputStream(socket.getOutputStream());
-                ois = new ObjectInputStream(socket.getInputStream());
+                System.out.println("Отправка запроса '" + request.getCommandName() + "' на сервер...");
+                oos.writeObject(request);
+                oos.flush();
+                System.out.println("Запрос отправлен. Ожидание ответа от сервера...");
 
-                System.out.println("Успешно подключено к серверу.");
-                return true;
+                ois = new ObjectInputStream(socket.getInputStream());
+                CommandResponse response = (CommandResponse) ois.readObject();
+                System.out.println("Ответ от сервера получен.");
+                return Optional.of(response);
+
             } catch (SocketTimeoutException e) {
-                System.err.println("Таймаут подключения к серверу (попытка " + attempt + "): " + e.getMessage());
+                System.err.println("Таймаут при обмене данными с сервером (попытка " + attempt + "): " + e.getMessage());
             } catch (IOException e) {
-                System.err.println("Ошибка подключения к серверу (попытка " + attempt + "): " + e.getMessage());
+                System.err.println("Ошибка ввода-вывода при обмене данными с сервером (попытка " + attempt + "): " + e.getMessage());
+            } catch (ClassNotFoundException e) {
+                System.err.println("Ошибка: не удалось десериализовать ответ от сервера: " + e.getMessage());
+            } finally {
+                try {
+                    if (ois != null) ois.close();
+                } catch (IOException ignored) {
+                }
+                try {
+                    if (oos != null) oos.close();
+                } catch (IOException ignored) {
+                }
+                try {
+                    if (socket != null && !socket.isClosed()) socket.close();
+                } catch (IOException ignored) {
+                }
+                ois = null;
+                oos = null;
+                socket = null;
             }
 
             if (attempt < MAX_CONNECTION_ATTEMPTS) {
@@ -62,50 +88,14 @@ public class NetworkManager {
                 } catch (InterruptedException ie) {
                     System.err.println("Попытка подключения прервана.");
                     Thread.currentThread().interrupt();
-                    return false;
+                    return Optional.empty();
                 }
             }
         }
-        System.err.println("Не удалось подключиться к серверу " + serverHost + ":" + serverPort + " после " + MAX_CONNECTION_ATTEMPTS + " попыток.");
-        return false;
+        System.err.println("Не удалось отправить запрос и получить ответ от сервера " + serverHost + ":" + serverPort + " после " + MAX_CONNECTION_ATTEMPTS + " попыток.");
+        return Optional.empty();
     }
 
-    public Optional<CommandResponse> sendRequest(CommandRequest request) {
-        if (!establishConnectionInternal()) {
-            return Optional.empty();
-        }
-
-        try {
-            System.out.println("Отправка запроса '" + request.getCommandName() + "' на сервер...");
-            if (oos == null) {
-                System.err.println("Ошибка: ObjectOutputStream не инициализирован перед отправкой.");
-                return Optional.empty();
-            }
-            oos.writeObject(request);
-            oos.flush();
-            System.out.println("Запрос отправлен. Ожидание ответа от сервера...");
-
-            if (ois == null) {
-                System.err.println("Ошибка: ObjectInputStream не инициализирован перед получением ответа.");
-                return Optional.empty();
-            }
-            CommandResponse response = (CommandResponse) ois.readObject();
-            System.out.println("Ответ от сервера получен.");
-            return Optional.of(response);
-
-        } catch (SocketTimeoutException e) {
-            System.err.println("Таймаут ожидания ответа от сервера: " + e.getMessage());
-            return Optional.empty();
-        } catch (IOException e) {
-            System.err.println("Ошибка ввода-вывода при обмене данными с сервером: " + e.getMessage());
-            return Optional.empty();
-        } catch (ClassNotFoundException e) {
-            System.err.println("Ошибка: не удалось десериализовать ответ от сервера: " + e.getMessage());
-            return Optional.empty();
-        } finally {
-            closeResources();
-        }
-    }
 
     public void closeConnection() {
         closeResources();
@@ -114,10 +104,12 @@ public class NetworkManager {
     private void closeResources() {
         try {
             if (ois != null) ois.close();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         try {
             if (oos != null) oos.close();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         try {
             if (socket != null && !socket.isClosed()) {
                 socket.close();

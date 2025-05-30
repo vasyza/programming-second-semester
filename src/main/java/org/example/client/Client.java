@@ -16,6 +16,10 @@ public class Client {
     private final List<String> commandHistory = new ArrayList<>();
     private static final int HISTORY_SIZE = 15;
 
+    private String currentUsername = null;
+    private String currentPassword = null;
+    private boolean isAuthenticated = false;
+
     public Client() {
         this.consoleScanner = new Scanner(System.in);
         this.globalInputHandler = new UserInputHandler(consoleScanner);
@@ -26,7 +30,7 @@ public class Client {
         System.out.println("Клиент запущен. Введите 'help' для списка команд.");
 
         while (true) {
-            System.out.print("client> ");
+            System.out.print(isAuthenticated ? currentUsername + "@client> " : "client> ");
             String line;
             try {
                 line = consoleScanner.nextLine().trim();
@@ -39,37 +43,88 @@ public class Client {
                 continue;
             }
 
-            String commandNameOnly = line.split("\\s+")[0].toLowerCase();
-            if (!commandNameOnly.equals("history")) {
-                addToHistory(commandNameOnly);
+            String[] parts = line.split("\\s+", 2);
+            String commandName = parts[0].toLowerCase();
+            String argsString = parts.length > 1 ? parts[1] : null;
+
+            if (!commandName.equals("history")) {
+                addToHistory(commandName);
             }
 
-
-            if (commandNameOnly.equalsIgnoreCase("exit")) {
+            if (commandName.equalsIgnoreCase("exit")) {
                 System.out.println("Завершение работы клиента...");
                 break;
             }
 
-            if (commandNameOnly.equalsIgnoreCase("history")) {
+            if (commandName.equalsIgnoreCase("history")) {
                 printHistory();
                 continue;
             }
 
-            if (commandNameOnly.equalsIgnoreCase("execute_script")) {
-                String[] parts = line.split("\\s+", 2);
-                if (parts.length < 2) {
+            if (commandName.equalsIgnoreCase("register") || commandName.equalsIgnoreCase("login")) {
+                processAuthCommand(commandName, argsString);
+                continue;
+            }
+
+            if (!isAuthenticated && !commandName.equalsIgnoreCase("help")) {
+                System.out.println(
+                        "Вы не авторизованы. Пожалуйста, войдите с помощью 'login <username> <password>' или зарегистрируйтесь 'register <username> <password>'.");
+                continue;
+            }
+
+            if (commandName.equalsIgnoreCase("execute_script")) {
+                if (argsString == null) {
                     System.out.println("Ошибка: Не указано имя файла для execute_script.");
                     continue;
                 }
-                executeScript(parts[1]);
+                executeScript(argsString);
             } else {
                 processAndSendCommand(line, globalInputHandler, false);
             }
         }
 
-        networkManager.closeConnection(); // Закрываем соединение при выходе
+        networkManager.closeConnection();
         consoleScanner.close();
         System.out.println("Клиент остановлен.");
+    }
+
+    private void processAuthCommand(String commandName, String argsString) {
+        String[] credentials = globalInputHandler.readCredentials(argsString, commandName);
+        if (credentials == null) {
+            return;
+        }
+        String tempUsername = credentials[0];
+        String tempPassword = credentials[1];
+
+        CommandRequest request;
+        if (commandName.equalsIgnoreCase("register")) {
+            request = new CommandRequest(commandName, new String[] { tempUsername, tempPassword });
+        } else {
+            request = new CommandRequest(commandName, null, tempUsername, tempPassword);
+        }
+
+        Optional<CommandResponse> responseOpt = networkManager.sendRequest(request);
+
+        if (responseOpt.isPresent()) {
+            CommandResponse response = responseOpt.get();
+            System.out.println("\n--- Ответ Сервера ---");
+            System.out.println(response.getMessage());
+            System.out.println("---------------------\n");
+            if (response.isSuccess()) {
+                if (commandName.equalsIgnoreCase("login")) {
+                    currentUsername = tempUsername;
+                    currentPassword = tempPassword;
+                    isAuthenticated = true;
+                } else if (commandName.equalsIgnoreCase("register")) {
+                    System.out.println(
+                            "Теперь вы можете войти с помощью команды 'login " + tempUsername + " <ваш_пароль>'.");
+                }
+            }
+        } else {
+            System.out.println("\n--- Ошибка Сети ---");
+            System.out.println("Не удалось получить ответ от сервера.");
+            System.out.println("-------------------\n");
+        }
     }
 
     private void addToHistory(String commandName) {
@@ -95,22 +150,19 @@ public class Client {
             String[] parts = line.split("\\s+", 2);
             String commandName = parts[0].toLowerCase();
             String argsString = parts.length > 1 ? parts[1] : null;
-            Object argument;
-
-            if (commandName.equals("save")) {
-                System.out.println("Команда 'save' не доступна на клиенте. Сохранение выполняется на сервере.");
-                return;
-            }
+            Object argument = null;
 
             switch (commandName) {
                 case "add":
                 case "add_if_min":
                 case "add_if_max":
-                    if (!fromScript) System.out.println("Введите данные для работника:");
+                    if (!fromScript)
+                        System.out.println("Введите данные для работника:");
                     try {
                         argument = inputHandler.readWorker(fromScript);
                     } catch (IllegalArgumentException | IllegalStateException e) {
-                        System.out.println("Ошибка ввода данных для работника" + (fromScript ? " в скрипте" : "") + ": " + e.getMessage());
+                        System.out.println("Ошибка ввода данных для работника" + (fromScript ? " в скрипте" : "") + ": "
+                                + e.getMessage());
                         return;
                     }
                     break;
@@ -124,9 +176,10 @@ public class Client {
                         if (!fromScript)
                             System.out.println("Введите новые данные для работника с ID " + updateId + ":");
                         Worker updateData = inputHandler.readWorker(fromScript);
-                        argument = new Object[]{updateId, updateData};
+                        argument = new Object[] { updateId, updateData };
                     } catch (IllegalArgumentException | IllegalStateException e) {
-                        System.out.println("Ошибка ввода данных для 'update'" + (fromScript ? " в скрипте" : "") + ": " + e.getMessage());
+                        System.out.println("Ошибка ввода данных для 'update'" + (fromScript ? " в скрипте" : "") + ": "
+                                + e.getMessage());
                         return;
                     }
                     break;
@@ -138,16 +191,16 @@ public class Client {
                     try {
                         argument = inputHandler.parseLong(argsString.trim(), "ID");
                     } catch (IllegalArgumentException e) {
-                        System.out.println("Ошибка ввода ID для 'remove_by_id'" + (fromScript ? " в скрипте" : "") + ": " + e.getMessage());
+                        System.out.println("Ошибка ввода ID для 'remove_by_id'" + (fromScript ? " в скрипте" : "")
+                                + ": " + e.getMessage());
                         return;
                     }
                     break;
                 default:
-                    argument = argsString;
                     break;
             }
 
-            CommandRequest request = new CommandRequest(commandName, argument);
+            CommandRequest request = new CommandRequest(commandName, argument, currentUsername, currentPassword);
             Optional<CommandResponse> responseOpt = networkManager.sendRequest(request);
 
             if (responseOpt.isPresent()) {
@@ -159,7 +212,12 @@ public class Client {
                 if (response.getResultData() != null) {
                     if (response.getResultData() instanceof List<?> listResult) {
                         if (!listResult.isEmpty()) {
-                            listResult.forEach(System.out::println);
+                            if (listResult.get(0) instanceof Worker) {
+                                System.out.println("Данные (включая ID владельца):");
+                                listResult.forEach(item -> System.out.println(item.toString()));
+                            } else {
+                                listResult.forEach(System.out::println);
+                            }
                         }
                     } else {
                         System.out.println("Данные: " + response.getResultData());
@@ -168,10 +226,23 @@ public class Client {
                 if (!response.isSuccess() && (response.getMessage() == null || response.getMessage().isEmpty())) {
                     System.out.println("Команда не выполнена успешно (дополнительных сообщений нет).");
                 }
+                if (!response.isSuccess() && response.getMessage() != null &&
+                        (response.getMessage().contains("Ошибка аутентификации")
+                                || response.getMessage().contains("доступ запрещен"))) {
+                    isAuthenticated = false;
+                    currentUsername = null;
+                    currentPassword = null;
+                    System.out.println("Сессия сброшена из-за ошибки аутентификации.");
+                }
                 System.out.println("---------------------\n");
             } else {
                 System.out.println("\n--- Ошибка Сети ---");
-                System.out.println("Не удалось получить ответ от сервера. Сервер может быть недоступен или произошла ошибка сети.");
+                System.out.println(
+                        "Не удалось получить ответ от сервера. Сервер может быть недоступен или произошла ошибка сети.");
+                System.out.println("Попробуйте войти снова, если проблема не устранена.");
+                isAuthenticated = false;
+                currentUsername = null;
+                currentPassword = null;
                 System.out.println("-------------------\n");
             }
 
@@ -193,7 +264,8 @@ public class Client {
         }
 
         if (!scriptFile.exists() || !scriptFile.isFile() || !scriptFile.canRead()) {
-            System.out.println("Ошибка: Не удается прочитать файл скрипта: " + filePath + " (Проверьте путь и права доступа)");
+            System.out.println(
+                    "Ошибка: Не удается прочитать файл скрипта: " + filePath + " (Проверьте путь и права доступа)");
             return;
         }
 
@@ -207,13 +279,12 @@ public class Client {
                 if (scriptLine.isEmpty() || scriptLine.startsWith("#")) {
                     continue;
                 }
-                System.out.println("Выполнение из скрипта '" + filePath + "': " + scriptLine);
+                System.out.println("(Скрипт '" + filePath + "')> " + scriptLine);
 
                 String commandNameOnly = scriptLine.split("\\s+")[0].toLowerCase();
                 if (!commandNameOnly.equals("history")) {
                     addToHistory(commandNameOnly);
                 }
-
 
                 if (commandNameOnly.equalsIgnoreCase("exit")) {
                     System.out.println("Команда 'exit' в скрипте игнорируется.");
@@ -222,6 +293,20 @@ public class Client {
                 if (commandNameOnly.equalsIgnoreCase("history")) {
                     printHistory();
                     continue;
+                }
+
+                if (commandNameOnly.equalsIgnoreCase("register") || commandNameOnly.equalsIgnoreCase("login")) {
+                    System.out.println(
+                            "Команды 'register' и 'login' в скриптах не поддерживаются в интерактивном режиме.");
+                    continue;
+                }
+
+                if (!isAuthenticated && !commandNameOnly.equalsIgnoreCase("help")) {
+                    System.out.println("Скрипт не может выполнить команду '" + commandNameOnly
+                            + "', так как клиент не авторизован.");
+                    System.out.println(
+                            "--- Прерывание выполнения скрипта: " + filePath + " из-за отсутствия авторизации ---");
+                    return;
                 }
 
                 if (commandNameOnly.equalsIgnoreCase("execute_script")) {
@@ -236,7 +321,9 @@ public class Client {
                 }
             }
         } catch (FileNotFoundException e) {
-            System.out.println("Критическая ошибка: Файл скрипта не найден, хотя проверка пройдена: " + filePath);
+            System.out.println(
+                    "Файл скрипта не найден во время выполнения: "
+                            + filePath);
         } catch (Exception e) {
             System.out.println("Ошибка во время выполнения скрипта '" + filePath + "': " + e.getMessage());
             e.printStackTrace();
