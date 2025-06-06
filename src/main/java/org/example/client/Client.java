@@ -1,9 +1,11 @@
 package org.example.client;
 
+import org.example.client.gui.LoginWindow;
 import org.example.common.model.Worker;
 import org.example.common.request.CommandRequest;
 import org.example.common.response.CommandResponse;
 
+import javax.swing.*;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.*;
@@ -334,7 +336,17 @@ public class Client {
     }
 
     public static void main(String[] args) {
-        Client client = new Client();
-        client.run();
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        SwingUtilities.invokeLater(() -> {
+            NetworkManager networkManager = new NetworkManager("localhost", 12345);
+
+            LoginWindow loginWindow = new LoginWindow(networkManager);
+            loginWindow.setVisible(true);
+        });
     }
 }

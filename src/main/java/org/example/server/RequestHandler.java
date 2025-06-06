@@ -78,7 +78,9 @@ public class RequestHandler {
 
         if ("login".equalsIgnoreCase(commandName)) {
             if (authenticatedUserOpt.isPresent()) {
-                return new CommandResponse(true, "Пользователь " + username + " успешно вошел в систему.", null);
+                User user = authenticatedUserOpt.get();
+                user.setHashedPassword(null);
+                return new CommandResponse(true, "Пользователь " + username + " успешно вошел в систему.", user);
             } else {
                 return new CommandResponse(false, "Ошибка входа: неверное имя пользователя или пароль.", null);
             }
